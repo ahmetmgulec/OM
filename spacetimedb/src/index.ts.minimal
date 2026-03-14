@@ -1,0 +1,44 @@
+// Minimal test schema to isolate the issue
+import { schema, t, table } from 'spacetimedb/server';
+
+const user = table(
+  { 
+    name: 'user', 
+    public: true,
+    indexes: []
+  },
+  {
+    identity: t.identity().primaryKey(),
+    name: t.string().optional(),
+    online: t.bool(),
+    avatar: t.string().optional(),
+  }
+);
+
+const spacetimedb = schema({ user });
+export default spacetimedb;
+
+export const init = spacetimedb.init(ctx => {
+  console.info('Module initialized');
+});
+
+export const onConnect = spacetimedb.clientConnected(ctx => {
+  const user = ctx.db.user.identity.find(ctx.sender);
+  if (user) {
+    ctx.db.user.identity.update({ ...user, online: true });
+  } else {
+    ctx.db.user.insert({
+      name: undefined,
+      identity: ctx.sender,
+      online: true,
+      avatar: undefined,
+    });
+  }
+});
+
+export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
+  const user = ctx.db.user.identity.find(ctx.sender);
+  if (user) {
+    ctx.db.user.identity.update({ ...user, online: false });
+  }
+});

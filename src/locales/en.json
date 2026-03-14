@@ -1,0 +1,130 @@
+{
+  "common": {
+    "welcome": "Welcome! 👋",
+    "selectChannel": "Select a channel",
+    "noChannels": "You don't have any channels yet.",
+    "createFirstChannel": "Click the + button on the left to create your first channel.",
+    "createFirstChannelButton": "Create First Channel",
+    "addUser": "+ Add User",
+    "roles": "⚙️ Roles",
+    "editName": "Edit Name",
+    "online": "Online",
+    "offline": "Offline",
+    "kick": "Kick",
+    "kickUser": "Kick User",
+    "kickConfirm": "Are you sure you want to kick this user from the channel?",
+    "ipAddress": "IP Address",
+    "ipNotSet": "No IP"
+  },
+  "auth": {
+    "welcome": "Welcome to OM",
+    "subtitle": "A Discord-like chat application",
+    "login": "Login",
+    "signup": "Sign Up",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "name": "Name",
+    "nameOptional": "Name (optional)",
+    "loggingIn": "Logging in...",
+    "signingUp": "Signing up...",
+    "or": "or",
+    "switchToSignup": "Don't have an account?",
+    "switchToLogin": "Already have an account?",
+    "googleLoginFailed": "Google login failed. Make sure popups are allowed for this site, or try email/password login.",
+    "googleSignupFailed": "Google sign up failed. Make sure popups are allowed for this site, or try email/password sign up.",
+    "googleNotConfigured": "Google OAuth is not configured. Please set VITE_GOOGLE_CLIENT_ID in your .env.local file.",
+    "passwordsDoNotMatch": "Passwords do not match"
+  },
+  "channels": {
+    "createChannel": "Create Channel",
+    "channelName": "Channel Name",
+    "channelDescription": "Description (Optional)",
+    "create": "Create",
+    "cancel": "Cancel"
+  },
+  "roles": {
+    "roleManagement": "Role Management",
+    "channelRoles": "Channel Roles",
+    "globalRoles": "Global Roles (For All Channels)",
+    "newRole": "+ New Role",
+    "noChannelRoles": "No roles for this channel yet",
+    "noGlobalRoles": "No global roles yet",
+    "roleName": "Role Name",
+    "roleColor": "Role Color",
+    "assign": "Assign",
+    "remove": "Remove",
+    "delete": "Delete",
+    "selectUser": "Select user...",
+    "users": "users",
+    "permissions": "Permissions",
+    "tip": "Tip:",
+    "tipText": "If you check \"Administrator\", all permissions will be automatically granted. You cannot select all permissions without Admin.",
+    "cannotDeleteOwnAdmin": "You cannot delete your own admin role",
+    "cannotDeleteOtherAdmin": "You cannot delete another user's admin role",
+    "cannotRemoveOwnAdmin": "You cannot remove your own admin role",
+    "cannotRemoveAdmin": "Admin role cannot be removed",
+    "permissionGroups": {
+      "channel": "Channel Permissions",
+      "message": "Message Permissions",
+      "userManagement": "User Management",
+      "roleManagement": "Role Management",
+      "voice": "Voice Permissions",
+      "special": "Special"
+    },
+    "permissions": {
+      "createChannel": "Create Channel",
+      "deleteChannel": "Delete Channel",
+      "manageChannel": "Manage Channel",
+      "sendMessage": "Send Message",
+      "editMessage": "Edit Message",
+      "deleteMessage": "Delete Message",
+      "kickUser": "Kick User",
+      "banUser": "Ban User",
+      "addUser": "Add User",
+      "removeUser": "Remove User",
+      "manageRoles": "Manage Roles",
+      "assignRoles": "Assign Roles",
+      "joinVoice": "Join Voice Room",
+      "speakInVoice": "Speak in Voice Room",
+      "muteOthers": "Mute Others",
+      "admin": "Administrator (All Permissions)"
+    }
+  },
+  "users": {
+    "addToChannel": "Add User",
+    "selectUserToAdd": "Select user to add",
+    "noUsersAvailable": "No users available to add",
+    "alreadyMember": "This user is already a member of the channel",
+    "kickFailed": "Failed to kick user"
+  },
+  "messages": {
+    "empty": "No messages yet. Start the conversation!"
+  },
+  "input": {
+    "placeholder": "Type a message...",
+    "send": "Send"
+  },
+  "voice": {
+    "join": "Join",
+    "leave": "Leave",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "deafen": "Deafen",
+    "undeafen": "Undeafen",
+    "micPermissionDenied": "Microphone access denied. Please allow microphone access to use voice chat.",
+    "mustBeMember": "You must be a channel member to join voice.",
+    "joinFailed": "Failed to join voice chat. Please try again."
+  },
+  "errors": {
+    "sendMessageFailed": "Failed to send message.",
+    "channelNameEmpty": "Channel name cannot be empty.",
+    "channelNameTooLong": "Channel name must be 100 characters or less.",
+    "createChannelFailed": "Failed to create channel.",
+    "joinChannelFailed": "Failed to join channel.",
+    "displayNameEmpty": "Name cannot be empty.",
+    "displayNameTooLong": "Name must be 32 characters or less.",
+    "userNotReady": "Please wait a moment for your account to be set up, then try again.",
+    "setNameFailed": "Failed to set name."
+  }
+}
