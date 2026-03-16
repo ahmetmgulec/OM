@@ -1066,41 +1066,198 @@ export const signup_google = spacetimedb.reducer(
 );
 
 export const login_google = spacetimedb.reducer(
-  { googleId: t.string() },
-  (ctx, { googleId }) => {
+  {
+    googleId: t.string(),
+    email: t.string().optional(),
+    name: t.string().optional(),
+    avatar: t.string().optional(),
+  },
+  (ctx, { googleId, email, name, avatar }) => {
     if (!googleId || googleId.trim().length === 0) {
       throw new SenderError('Google ID is required');
     }
-    
+
+    const trimmedGoogleId = googleId.trim();
+
     // Find Google auth record
-    const googleAuth = ctx.db.googleAuth.googleId.find(googleId.trim());
+    let googleAuth = ctx.db.googleAuth.googleId.find(trimmedGoogleId);
+
+    // If no account exists, create one (first-time Google login = auto-signup)
     if (!googleAuth) {
-      throw new SenderError('Google account not found. Please sign up first.');
+      // Check if Google ID already exists (race condition guard)
+      const existingAuth = ctx.db.googleAuth.googleId.find(trimmedGoogleId);
+      if (existingAuth) {
+        googleAuth = existingAuth;
+      } else {
+        // Create user and googleAuth (same logic as signup_google)
+        let user = ctx.db.user.identity.find(ctx.sender);
+        if (!user) {
+          user = ctx.db.user.insert({
+            identity: ctx.sender,
+            name: name?.trim() || undefined,
+            online: true,
+            avatar: avatar || undefined,
+            authMethod: 'google',
+            lastIpAddress: undefined,
+          });
+
+          // First authenticated user gets admin
+          const allUsers = [...ctx.db.user.iter()];
+          const authenticatedUsers = allUsers.filter(u => u.authMethod);
+          const allRoles = [...ctx.db.role.iter()];
+          const hasAdminRole = allRoles.some(r => (r.permissions & Permissions.ADMIN) !== 0n);
+
+          if (authenticatedUsers.length === 1 && !hasAdminRole) {
+            try {
+              const adminRole = ctx.db.role.insert({
+                id: 0n,
+                channelId: undefined,
+                name: 'Admin',
+                color: '#f04747',
+                permissions: Permissions.ADMIN,
+                position: 1000n,
+                createdAt: ctx.timestamp,
+                createdBy: ctx.sender,
+              });
+
+              ctx.db.roleMember.insert({
+                id: 0n,
+                roleId: adminRole.id,
+                userId: ctx.sender,
+                assignedAt: ctx.timestamp,
+                assignedBy: undefined,
+              });
+
+              console.info(`First authenticated user ${ctx.sender} automatically assigned admin role`);
+            } catch (err) {
+              console.error('Error creating admin role:', err);
+            }
+          }
+        } else {
+          ctx.db.user.identity.update({
+            ...user,
+            name: name?.trim() || user.name,
+            online: true,
+            avatar: avatar || user.avatar,
+            authMethod: 'google',
+            lastIpAddress: user.lastIpAddress,
+          });
+        }
+
+        ctx.db.googleAuth.insert({
+          googleId: trimmedGoogleId,
+          identity: ctx.sender,
+          email: email?.toLowerCase().trim() || undefined,
+          name: name?.trim() || undefined,
+          avatar: avatar || undefined,
+          createdAt: ctx.timestamp,
+        });
+
+        console.info(`User ${ctx.sender} signed up with Google ID ${trimmedGoogleId} (first login)`);
+        return;
+      }
     }
-    
-    // Ensure user record exists
-    let user = ctx.db.user.identity.find(googleAuth.identity);
+
+    // Existing account: when session (ctx.sender) differs from account (googleAuth.identity),
+    // create user for session, copy memberships, and link identities (same as login_email)
+    const originalUser = ctx.db.user.identity.find(googleAuth.identity);
+    let user = ctx.db.user.identity.find(ctx.sender);
     if (!user) {
       user = ctx.db.user.insert({
-        identity: googleAuth.identity,
-        name: googleAuth.name || undefined,
+        identity: ctx.sender,
+        name: originalUser?.name ?? googleAuth.name ?? name?.trim() ?? undefined,
         online: true,
-        avatar: googleAuth.avatar || undefined,
+        avatar: originalUser?.avatar ?? googleAuth.avatar ?? avatar ?? undefined,
         authMethod: 'google',
-        lastIpAddress: undefined, // Will be set on next connection
+        lastIpAddress: undefined,
       });
     } else {
-      // Update user info from Google auth if available
       ctx.db.user.identity.update({
         ...user,
+        name: user.name ?? originalUser?.name ?? googleAuth.name ?? name?.trim(),
         online: true,
-        name: googleAuth.name || user.name,
-        avatar: googleAuth.avatar || user.avatar,
+        avatar: user.avatar ?? originalUser?.avatar ?? googleAuth.avatar ?? avatar,
         authMethod: 'google',
+        lastIpAddress: user.lastIpAddress,
       });
     }
-    
-    console.info(`User ${googleAuth.identity} logged in with Google ID ${googleId}`);
+
+    // Copy role memberships from account to session
+    const originalRoleMembers = [...ctx.db.roleMember.iter()].filter(
+      rm => rm.userId.isEqual(googleAuth.identity)
+    );
+    for (const rm of originalRoleMembers) {
+      const alreadyAssigned = [...ctx.db.roleMember.iter()].some(
+        m => m.roleId === rm.roleId && m.userId.isEqual(ctx.sender)
+      );
+      if (!alreadyAssigned) {
+        ctx.db.roleMember.insert({
+          id: 0n,
+          roleId: rm.roleId,
+          userId: ctx.sender,
+          assignedAt: ctx.timestamp,
+          assignedBy: rm.assignedBy,
+        });
+      }
+    }
+
+    // Copy channel memberships from account to session
+    const originalChannelMembers = [...ctx.db.channelMember.iter()].filter(
+      m => m.userId.isEqual(googleAuth.identity)
+    );
+    for (const m of originalChannelMembers) {
+      const alreadyMember = [...ctx.db.channelMember.iter()].some(
+        cm => cm.channelId === m.channelId && cm.userId.isEqual(ctx.sender)
+      );
+      if (!alreadyMember) {
+        ctx.db.channelMember.insert({
+          id: 0n,
+          channelId: m.channelId,
+          userId: ctx.sender,
+          joinedAt: ctx.timestamp,
+        });
+      }
+    }
+
+    // Link session to account identity when they differ
+    if (!googleAuth.identity.isEqual(ctx.sender)) {
+      const existingLink = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
+      if (existingLink) {
+        ctx.db.identityLink.sessionIdentity.update({
+          ...existingLink,
+          accountIdentity: googleAuth.identity,
+          linkedAt: ctx.timestamp,
+        });
+      } else {
+        ctx.db.identityLink.insert({
+          sessionIdentity: ctx.sender,
+          accountIdentity: googleAuth.identity,
+          linkedAt: ctx.timestamp,
+        });
+      }
+      const existingReplaced = ctx.db.replacedIdentity.oldIdentity.find(ctx.sender);
+      if (existingReplaced) {
+        ctx.db.replacedIdentity.oldIdentity.update({
+          ...existingReplaced,
+          newIdentity: googleAuth.identity,
+          replacedAt: ctx.timestamp,
+        });
+      } else {
+        ctx.db.replacedIdentity.insert({
+          oldIdentity: ctx.sender,
+          newIdentity: googleAuth.identity,
+          replacedAt: ctx.timestamp,
+        });
+      }
+    }
+
+    // Set account identity online
+    const accountUser = ctx.db.user.identity.find(googleAuth.identity);
+    if (accountUser) {
+      ctx.db.user.identity.update({ ...accountUser, online: true });
+    }
+
+    console.info(`User ${ctx.sender} logged in with Google ID ${trimmedGoogleId}`);
   }
 );
 

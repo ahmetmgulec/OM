@@ -75,7 +75,12 @@ export function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       );
       const payload = JSON.parse(jsonPayload);
 
-      await loginGoogle({ googleId: payload.sub });
+      await loginGoogle({
+        googleId: payload.sub,
+        email: payload.email ?? undefined,
+        name: payload.name ?? undefined,
+        avatar: payload.picture ?? undefined,
+      });
       // Success - connection will be established automatically
     } catch (err: unknown) {
       setError(getErrorMessage(err));

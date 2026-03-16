@@ -12,4 +12,7 @@ import {
 
 export default {
   googleId: __t.string(),
+  email: __t.option(__t.string()),
+  name: __t.option(__t.string()),
+  avatar: __t.option(__t.string()),
 };
