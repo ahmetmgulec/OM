@@ -46,6 +46,13 @@ export const GoogleAuth = __t.object("GoogleAuth", {
 });
 export type GoogleAuth = __Infer<typeof GoogleAuth>;
 
+export const IdentityLink = __t.object("IdentityLink", {
+  sessionIdentity: __t.identity(),
+  accountIdentity: __t.identity(),
+  linkedAt: __t.timestamp(),
+});
+export type IdentityLink = __Infer<typeof IdentityLink>;
+
 export const Message = __t.object("Message", {
   id: __t.u64(),
   sender: __t.identity(),

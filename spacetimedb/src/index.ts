@@ -245,10 +245,27 @@ const replacedIdentity = table(
   }
 );
 
+// Links a session identity to an account identity for email login.
+// When ctx.sender !== credential.identity, we create this link so the account identity
+// (credential.identity) is preserved and never changes. The session (ctx.sender) is
+// a temporary proxy - we write to both so data persists under the canonical identity.
+const identityLink = table(
+  {
+    name: 'identityLink',
+    public: false,
+    indexes: [{ accessor: 'accountIdentity', name: 'identity_link_by_account', algorithm: 'btree' as const, columns: ['accountIdentity'] }],
+  },
+  {
+    sessionIdentity: t.identity().primaryKey(),
+    accountIdentity: t.identity(),
+    linkedAt: t.timestamp(),
+  }
+);
+
 const spacetimedb = schema({ 
   user, channel, thread, message, channelMember, emailCredential, googleAuth,
   voiceRoom, voiceParticipant, voiceSignaling, voiceRecordingChunk,
-  role, roleMember, replacedIdentity
+  role, roleMember, replacedIdentity, identityLink
 });
 export default spacetimedb;
 
@@ -526,11 +543,27 @@ export const join_channel = spacetimedb.reducer(
       throw new SenderError('Channel not found');
     }
     
+    const identityLink = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
+    const accountIdentity = identityLink?.accountIdentity;
+
     const channelMembers = [...ctx.db.channelMember.iter()].filter(m => m.channelId === channelId);
     const existingMember = channelMembers.find(m => m.userId.isEqual(ctx.sender));
+    const accountAlreadyMember = accountIdentity && channelMembers.some(m => m.userId.isEqual(accountIdentity));
     
     if (existingMember) {
       throw new SenderError('You are already a member of this channel');
+    }
+    
+    // If account is already a member (from another session), just add session for access
+    if (accountAlreadyMember) {
+      ctx.db.channelMember.insert({
+        id: 0n,
+        channelId,
+        userId: ctx.sender,
+        joinedAt: ctx.timestamp,
+      });
+      console.info(`User ${ctx.sender} joined channel ${channelId} (linked session)`);
+      return;
     }
     
     ctx.db.channelMember.insert({
@@ -539,6 +572,15 @@ export const join_channel = spacetimedb.reducer(
       userId: ctx.sender,
       joinedAt: ctx.timestamp,
     });
+    
+    if (accountIdentity && !accountAlreadyMember) {
+      ctx.db.channelMember.insert({
+        id: 0n,
+        channelId,
+        userId: accountIdentity,
+        joinedAt: ctx.timestamp,
+      });
+    }
     
     console.info(`User ${ctx.sender} joined channel ${channelId}`);
   }
@@ -891,32 +933,43 @@ export const login_email = spacetimedb.reducer(
       }
     }
 
-    // When migrating to new identity: mark old as replaced and remove old memberships
-    // so the old session doesn't appear as duplicate offline in the user list
+    // When session identity differs from account identity: link them so the account
+    // identity (credential.identity) is preserved and never changes. We do NOT
+    // update the credential or delete the account's memberships - the canonical
+    // identity stays credential.identity for all future logins.
     if (!credential.identity.isEqual(ctx.sender)) {
-      const existing = ctx.db.replacedIdentity.oldIdentity.find(credential.identity);
-      if (existing) {
+      // Link this session to the account identity
+      const existingLink = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
+      if (existingLink) {
+        ctx.db.identityLink.sessionIdentity.update({
+          ...existingLink,
+          accountIdentity: credential.identity,
+          linkedAt: ctx.timestamp,
+        });
+      } else {
+        ctx.db.identityLink.insert({
+          sessionIdentity: ctx.sender,
+          accountIdentity: credential.identity,
+          linkedAt: ctx.timestamp,
+        });
+      }
+      // Hide session identity in user list - show account identity (credential.identity)
+      const existingReplaced = ctx.db.replacedIdentity.oldIdentity.find(ctx.sender);
+      if (existingReplaced) {
         ctx.db.replacedIdentity.oldIdentity.update({
-          ...existing,
-          newIdentity: ctx.sender,
+          ...existingReplaced,
+          newIdentity: credential.identity,
           replacedAt: ctx.timestamp,
         });
       } else {
         ctx.db.replacedIdentity.insert({
-          oldIdentity: credential.identity,
-          newIdentity: ctx.sender,
+          oldIdentity: ctx.sender,
+          newIdentity: credential.identity,
           replacedAt: ctx.timestamp,
         });
       }
-      // Remove old channel/role memberships so we don't have double entries
-      for (const m of originalChannelMembers) {
-        ctx.db.channelMember.delete(m);
-      }
-      for (const rm of originalRoleMembers) {
-        ctx.db.roleMember.delete(rm);
-      }
-      // Update credential so future logins copy from this identity
-      ctx.db.emailCredential.email.update({ ...credential, identity: ctx.sender });
+      // Do NOT update credential.identity - it stays the canonical identity
+      // Do NOT delete credential.identity's memberships - data persists under account
     }
     
     console.info(`User ${ctx.sender} logged in with email ${normalizedEmail}`);
@@ -1594,6 +1647,18 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
       online: true,
       lastIpAddress: connectionAddress || user.lastIpAddress, // Update connection address if available
     });
+    // If this is a linked session (email login), also set account identity online
+    const link = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
+    if (link) {
+      const accountUser = ctx.db.user.identity.find(link.accountIdentity);
+      if (accountUser) {
+        ctx.db.user.identity.update({
+          ...accountUser,
+          online: true,
+          lastIpAddress: connectionAddress || accountUser.lastIpAddress,
+        });
+      }
+    }
   } else {
     // Check if this identity has any auth credentials (email or Google)
     const emailCreds = [...ctx.db.emailCredential.iter()].find(c => c.identity.isEqual(ctx.sender));
