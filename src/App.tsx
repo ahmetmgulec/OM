@@ -13,10 +13,8 @@ import { AddUserToChannelModal } from './components/AddUserToChannelModal';
 import { RoleManagementModal } from './components/RoleManagementModal';
 import { SettingsModal } from './components/SettingsModal';
 import { useLogout } from './contexts/LogoutContext';
-import { isSpacetimeAuthConfigured } from './config/auth';
 import { VoiceControls } from './components/VoiceControls';
 import { VoiceRecordings } from './components/VoiceRecordings';
-import { AuthScreen } from './components/AuthScreen';
 import { LanguageSelector } from './components/LanguageSelector';
 import { NotificationBar } from './components/NotificationBar';
 import { useVoiceChat } from './hooks/useVoiceChat';
@@ -68,17 +66,12 @@ function App() {
   const [channelMembers] = useTable(tables.channelMember);
   const [messages] = useTable(tables.message);
   const [users] = useTable(tables.user);
-  const [replacedIdentities] = useTable(tables.replacedIdentity);
   const [roles] = useTable(tables.role);
   const [roleMembers] = useTable(tables.roleMember);
   const [voiceRooms] = useTable(tables.voiceRoom);
   const [voiceParticipants] = useTable(tables.voiceParticipant);
 
-  // Hide replaced (old session) identities to avoid duplicate user entries after login
-  const displayedUsers = useMemo(
-    () => users.filter(u => !replacedIdentities.some(r => r.oldIdentity.isEqual(u.identity))),
-    [users, replacedIdentities]
-  );
+  const displayedUsers = users;
   
   // Log table data to help debug
   useEffect(() => {
@@ -88,18 +81,13 @@ function App() {
     console.log('Users:', users.length);
   }, [channels, channelMembers, messages, users]);
 
-  // Get channels the current user is a member of.
-  // Use resolved identity (account) when linked so we see channels created with the original account.
   const userChannels = useMemo(() => {
     if (!identity) return [];
-    const resolvedId = replacedIdentities.find(r => r.oldIdentity.isEqual(identity))?.newIdentity ?? identity;
     const memberChannelIds = new Set(
-      channelMembers
-        .filter(m => m.userId.isEqual(resolvedId) || m.userId.isEqual(identity))
-        .map(m => m.channelId)
+      channelMembers.filter(m => m.userId.isEqual(identity)).map(m => m.channelId)
     );
     return channels.filter(c => memberChannelIds.has(c.id));
-  }, [channels, channelMembers, identity, replacedIdentities]);
+  }, [channels, channelMembers, identity]);
 
   // Get messages for the selected channel
   const channelMessages = useMemo(() => {
@@ -124,8 +112,6 @@ function App() {
     return map;
   }, [voiceRooms, voiceParticipants, users]);
 
-  // Create users map for quick lookup.
-  // Include resolved identities (session -> account) so linked sessions show account name.
   const usersMap = useMemo(() => {
     const map = new Map<string, { name?: string; identity: Identity }>();
     users.forEach(user => {
@@ -134,17 +120,8 @@ function App() {
         identity: user.identity,
       });
     });
-    replacedIdentities.forEach(r => {
-      const accountUser = users.find(u => u.identity.isEqual(r.newIdentity));
-      if (accountUser) {
-        map.set(r.oldIdentity.toHexString(), {
-          name: accountUser.name,
-          identity: r.oldIdentity,
-        });
-      }
-    });
     return map;
-  }, [users, replacedIdentities]);
+  }, [users]);
 
   // Permission flags (must match backend)
   const Permissions = {
@@ -315,24 +292,17 @@ function App() {
     );
   }
 
-  // When linked (session), resolve to account identity for user lookup (session has no user row)
-  const resolvedIdentity = replacedIdentities.find(r => r.oldIdentity.isEqual(identity))?.newIdentity ?? identity;
-  const currentUser = users.find(u => u.identity.isEqual(resolvedIdentity));
+  const currentUser = users.find(u => u.identity.isEqual(identity));
   
-  // Show auth screen if user is not authenticated (legacy flow only)
-  // With SpacetimeAuth, we never show AuthScreen - User is created by backend on connect.
-  // Show loading while waiting for User row to sync.
+  // Wait for User row (created by backend on SpacetimeAuth connect)
   if (!currentUser || !currentUser.authMethod) {
-    if (isSpacetimeAuthConfigured()) {
-      return (
-        <div className="app-container">
-          <div className="loading-screen">
-            <h1>{t('auth.loading') ?? 'Setting up your account...'}</h1>
-          </div>
+    return (
+      <div className="app-container">
+        <div className="loading-screen">
+          <h1>{t('auth.loading') ?? 'Setting up your account...'}</h1>
         </div>
-      );
-    }
-    return <AuthScreen />;
+      </div>
+    );
   }
 
   const displayName = currentUser?.name || identity.toHexString().substring(0, 8);

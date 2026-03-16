@@ -10,12 +10,6 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export const ActiveSession = __t.object("ActiveSession", {
-  sessionIdentity: __t.identity(),
-  connectedAt: __t.timestamp(),
-});
-export type ActiveSession = __Infer<typeof ActiveSession>;
-
 export const Channel = __t.object("Channel", {
   id: __t.u64(),
   name: __t.string(),
@@ -34,31 +28,6 @@ export const ChannelMember = __t.object("ChannelMember", {
 });
 export type ChannelMember = __Infer<typeof ChannelMember>;
 
-export const EmailCredential = __t.object("EmailCredential", {
-  email: __t.string(),
-  passwordHash: __t.string(),
-  identity: __t.identity(),
-  createdAt: __t.timestamp(),
-});
-export type EmailCredential = __Infer<typeof EmailCredential>;
-
-export const GoogleAuth = __t.object("GoogleAuth", {
-  googleId: __t.string(),
-  identity: __t.identity(),
-  email: __t.option(__t.string()),
-  name: __t.option(__t.string()),
-  avatar: __t.option(__t.string()),
-  createdAt: __t.timestamp(),
-});
-export type GoogleAuth = __Infer<typeof GoogleAuth>;
-
-export const IdentityLink = __t.object("IdentityLink", {
-  sessionIdentity: __t.identity(),
-  accountIdentity: __t.identity(),
-  linkedAt: __t.timestamp(),
-});
-export type IdentityLink = __Infer<typeof IdentityLink>;
-
 export const Message = __t.object("Message", {
   id: __t.u64(),
   sender: __t.identity(),
@@ -69,13 +38,6 @@ export const Message = __t.object("Message", {
   editedAt: __t.option(__t.timestamp()),
 });
 export type Message = __Infer<typeof Message>;
-
-export const ReplacedIdentity = __t.object("ReplacedIdentity", {
-  oldIdentity: __t.identity(),
-  newIdentity: __t.identity(),
-  replacedAt: __t.timestamp(),
-});
-export type ReplacedIdentity = __Infer<typeof ReplacedIdentity>;
 
 export const Role = __t.object("Role", {
   id: __t.u64(),

@@ -89,37 +89,6 @@ const channelMember = table(
   }
 );
 
-// Authentication tables
-const emailCredential = table(
-  {
-    name: 'emailCredential',
-    public: false, // Private table - only accessible via reducers
-    indexes: [], // No manual indexes needed - primary key 'email' is automatically indexed
-  },
-  {
-    email: t.string().primaryKey(),
-    passwordHash: t.string(), // Simple hash for now - in production use proper bcrypt
-    identity: t.identity(),
-    createdAt: t.timestamp(),
-  }
-);
-
-const googleAuth = table(
-  {
-    name: 'googleAuth',
-    public: false, // Private table - only accessible via reducers
-    indexes: [], // No manual indexes needed - primary key 'googleId' is automatically indexed
-  },
-  {
-    googleId: t.string().primaryKey(),
-    identity: t.identity(),
-    email: t.string().optional(),
-    name: t.string().optional(),
-    avatar: t.string().optional(),
-    createdAt: t.timestamp(),
-  }
-);
-
 // Voice room tables
 const voiceRoom = table(
   {
@@ -230,55 +199,10 @@ const roleMember = table(
   }
 );
 
-// Tracks identities replaced during login migration (old session -> new session)
-// Client filters these out to avoid duplicate user entries in the list
-const replacedIdentity = table(
-  {
-    name: 'replacedIdentity',
-    public: true,
-    indexes: [],
-  },
-  {
-    oldIdentity: t.identity().primaryKey(),
-    newIdentity: t.identity(),
-    replacedAt: t.timestamp(),
-  }
-);
-
-// Links a session identity to an account identity for email/Google login.
-// When ctx.sender !== account identity, we create this link so the account identity
-// is preserved. Only the account has a user row - no duplicate user rows for sessions.
-const identityLink = table(
-  {
-    name: 'identityLink',
-    public: false,
-    indexes: [{ accessor: 'accountIdentity', name: 'identity_link_by_account', algorithm: 'btree' as const, columns: ['accountIdentity'] }],
-  },
-  {
-    sessionIdentity: t.identity().primaryKey(),
-    accountIdentity: t.identity(),
-    linkedAt: t.timestamp(),
-  }
-);
-
-// Tracks which session identities are currently connected.
-// Used to know when to set account user offline (when last linked session disconnects).
-const activeSession = table(
-  {
-    name: 'activeSession',
-    public: false,
-    indexes: [],
-  },
-  {
-    sessionIdentity: t.identity().primaryKey(),
-    connectedAt: t.timestamp(),
-  }
-);
-
 const spacetimedb = schema({ 
-  user, channel, thread, message, channelMember, emailCredential, googleAuth,
+  user, channel, thread, message, channelMember,
   voiceRoom, voiceParticipant, voiceSignaling, voiceRecordingChunk,
-  role, roleMember, replacedIdentity, identityLink, activeSession
+  role, roleMember,
 });
 export default spacetimedb;
 
@@ -407,47 +331,6 @@ function validateChannelName(name: string) {
   }
 }
 
-function validateEmail(email: string) {
-  if (!email || email.trim().length === 0) {
-    throw new SenderError('Email must not be empty');
-  }
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    throw new SenderError('Invalid email format');
-  }
-  if (email.length > 255) {
-    throw new SenderError('Email must be 255 characters or less');
-  }
-}
-
-function validatePassword(password: string) {
-  if (!password || password.length === 0) {
-    throw new SenderError('Password must not be empty');
-  }
-  if (password.length < 6) {
-    throw new SenderError('Password must be at least 6 characters');
-  }
-  if (password.length > 128) {
-    throw new SenderError('Password must be 128 characters or less');
-  }
-}
-
-// Simple hash function - in production, use proper bcrypt
-function hashPassword(password: string): string {
-  // Simple hash for demo - replace with proper bcrypt in production
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return hash.toString(36);
-}
-
-function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // REDUCERS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -556,27 +439,11 @@ export const join_channel = spacetimedb.reducer(
       throw new SenderError('Channel not found');
     }
     
-    const identityLink = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
-    const accountIdentity = identityLink?.accountIdentity;
-
     const channelMembers = [...ctx.db.channelMember.iter()].filter(m => m.channelId === channelId);
     const existingMember = channelMembers.find(m => m.userId.isEqual(ctx.sender));
-    const accountAlreadyMember = accountIdentity && channelMembers.some(m => m.userId.isEqual(accountIdentity));
     
     if (existingMember) {
       throw new SenderError('You are already a member of this channel');
-    }
-    
-    // If account is already a member (from another session), just add session for access
-    if (accountAlreadyMember) {
-      ctx.db.channelMember.insert({
-        id: 0n,
-        channelId,
-        userId: ctx.sender,
-        joinedAt: ctx.timestamp,
-      });
-      console.info(`User ${ctx.sender} joined channel ${channelId} (linked session)`);
-      return;
     }
     
     ctx.db.channelMember.insert({
@@ -585,15 +452,6 @@ export const join_channel = spacetimedb.reducer(
       userId: ctx.sender,
       joinedAt: ctx.timestamp,
     });
-    
-    if (accountIdentity && !accountAlreadyMember) {
-      ctx.db.channelMember.insert({
-        id: 0n,
-        channelId,
-        userId: accountIdentity,
-        joinedAt: ctx.timestamp,
-      });
-    }
     
     console.info(`User ${ctx.sender} joined channel ${channelId}`);
   }
@@ -777,560 +635,6 @@ export const edit_message = spacetimedb.reducer(
     });
     
     console.info(`User ${ctx.sender} edited message ${messageId}`);
-  }
-);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AUTHENTICATION REDUCERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const signup_email = spacetimedb.reducer(
-  { email: t.string(), password: t.string(), name: t.string().optional() },
-  (ctx, { email, password, name }) => {
-    const normalizedEmail = email.toLowerCase().trim();
-    validateEmail(normalizedEmail);
-    validatePassword(password);
-    
-    // Check if email already exists
-    const existingCredential = ctx.db.emailCredential.email.find(normalizedEmail);
-    if (existingCredential) {
-      throw new SenderError('Email already registered');
-    }
-    
-    // Hash password
-    const passwordHash = hashPassword(password);
-    
-    // Check if user already exists
-    let user = ctx.db.user.identity.find(ctx.sender);
-    if (user) {
-      // Update existing user
-      ctx.db.user.identity.update({
-        ...user,
-        name: name?.trim() || user.name,
-        online: true,
-        authMethod: 'email',
-        lastIpAddress: user.lastIpAddress, // Keep existing IP
-      });
-    } else {
-      // Create new user record
-      user = ctx.db.user.insert({
-        identity: ctx.sender,
-        name: name?.trim() || undefined,
-        online: true,
-        avatar: undefined,
-        authMethod: 'email',
-        lastIpAddress: undefined, // Will be set on next connection
-      });
-      
-      // If this is the first authenticated user and no admin role exists, make them admin
-      const allUsers = [...ctx.db.user.iter()];
-      const authenticatedUsers = allUsers.filter(u => u.authMethod);
-      const allRoles = [...ctx.db.role.iter()];
-      const hasAdminRole = allRoles.some(r => (r.permissions & Permissions.ADMIN) !== 0n);
-      
-      if (authenticatedUsers.length === 1 && !hasAdminRole) {
-        try {
-          const adminRole = ctx.db.role.insert({
-            id: 0n,
-            channelId: undefined,
-            name: 'Admin',
-            color: '#f04747',
-            permissions: Permissions.ADMIN,
-            position: 1000n,
-            createdAt: ctx.timestamp,
-            createdBy: ctx.sender,
-          });
-          
-          ctx.db.roleMember.insert({
-            id: 0n,
-            roleId: adminRole.id,
-            userId: ctx.sender,
-            assignedAt: ctx.timestamp,
-            assignedBy: undefined,
-          });
-          
-          console.info(`First authenticated user ${ctx.sender} automatically assigned admin role`);
-        } catch (err) {
-          console.error('Error creating admin role:', err);
-        }
-      }
-    }
-    
-    // Create email credential
-    ctx.db.emailCredential.insert({
-      email: normalizedEmail,
-      passwordHash,
-      identity: ctx.sender,
-      createdAt: ctx.timestamp,
-    });
-    
-    console.info(`User ${ctx.sender} signed up with email ${normalizedEmail}`);
-  }
-);
-
-export const login_email = spacetimedb.reducer(
-  { email: t.string(), password: t.string() },
-  (ctx, { email, password }) => {
-    const normalizedEmail = email.toLowerCase().trim();
-    validateEmail(normalizedEmail);
-    validatePassword(password);
-    
-    // Find credential
-    const credential = ctx.db.emailCredential.email.find(normalizedEmail);
-    if (!credential) {
-      throw new SenderError('Invalid email or password');
-    }
-    
-    // Verify password
-    if (!verifyPassword(password, credential.passwordHash)) {
-      throw new SenderError('Invalid email or password');
-    }
-    
-    const originalUser = ctx.db.user.identity.find(credential.identity);
-    const isLinked = !credential.identity.isEqual(ctx.sender);
-
-    // Only create user for ctx.sender when NOT linked - when linked, only account has user row (no duplicates)
-    if (!isLinked) {
-      let user = ctx.db.user.identity.find(ctx.sender);
-      if (!user) {
-        ctx.db.user.insert({
-          identity: ctx.sender,
-          name: originalUser?.name,
-          online: true,
-          avatar: originalUser?.avatar,
-          authMethod: 'email',
-          lastIpAddress: undefined,
-        });
-      } else {
-        ctx.db.user.identity.update({
-          ...user,
-          name: user.name ?? originalUser?.name,
-          online: true,
-          authMethod: 'email',
-          lastIpAddress: user.lastIpAddress,
-        });
-      }
-    } else {
-      // Linked session: ensure account has user, update it. Do NOT create user for ctx.sender.
-      if (!originalUser) {
-        ctx.db.user.insert({
-          identity: credential.identity,
-          name: undefined,
-          online: true,
-          avatar: undefined,
-          authMethod: 'email',
-          lastIpAddress: undefined,
-        });
-      } else {
-        ctx.db.user.identity.update({ ...originalUser, online: true });
-      }
-    }
-
-    // Copy role memberships from original account (admin, channel roles, etc.)
-    const originalRoleMembers = [...ctx.db.roleMember.iter()].filter(
-      rm => rm.userId.isEqual(credential.identity)
-    );
-    for (const rm of originalRoleMembers) {
-      const alreadyAssigned = [...ctx.db.roleMember.iter()].some(
-        m => m.roleId === rm.roleId && m.userId.isEqual(ctx.sender)
-      );
-      if (!alreadyAssigned) {
-        ctx.db.roleMember.insert({
-          id: 0n,
-          roleId: rm.roleId,
-          userId: ctx.sender,
-          assignedAt: ctx.timestamp,
-          assignedBy: rm.assignedBy,
-        });
-      }
-    }
-
-    // Copy channel memberships from original account
-    const originalChannelMembers = [...ctx.db.channelMember.iter()].filter(
-      m => m.userId.isEqual(credential.identity)
-    );
-    for (const m of originalChannelMembers) {
-      const alreadyMember = [...ctx.db.channelMember.iter()].some(
-        cm => cm.channelId === m.channelId && cm.userId.isEqual(ctx.sender)
-      );
-      if (!alreadyMember) {
-        ctx.db.channelMember.insert({
-          id: 0n,
-          channelId: m.channelId,
-          userId: ctx.sender,
-          joinedAt: ctx.timestamp,
-        });
-      }
-    }
-
-    if (isLinked) {
-      // Link this session to the account identity
-      const existingLink = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
-      if (existingLink) {
-        ctx.db.identityLink.sessionIdentity.update({
-          ...existingLink,
-          accountIdentity: credential.identity,
-          linkedAt: ctx.timestamp,
-        });
-      } else {
-        ctx.db.identityLink.insert({
-          sessionIdentity: ctx.sender,
-          accountIdentity: credential.identity,
-          linkedAt: ctx.timestamp,
-        });
-      }
-      // Hide session identity in user list - show account identity (credential.identity)
-      const existingReplaced = ctx.db.replacedIdentity.oldIdentity.find(ctx.sender);
-      if (existingReplaced) {
-        ctx.db.replacedIdentity.oldIdentity.update({
-          ...existingReplaced,
-          newIdentity: credential.identity,
-          replacedAt: ctx.timestamp,
-        });
-      } else {
-        ctx.db.replacedIdentity.insert({
-          oldIdentity: ctx.sender,
-          newIdentity: credential.identity,
-          replacedAt: ctx.timestamp,
-        });
-      }
-      // Upsert: clientConnected may have already added this session on connect
-      const existingSession = ctx.db.activeSession.sessionIdentity.find(ctx.sender);
-      if (existingSession) {
-        ctx.db.activeSession.sessionIdentity.update({
-          ...existingSession,
-          connectedAt: ctx.timestamp,
-        });
-      } else {
-        ctx.db.activeSession.insert({
-          sessionIdentity: ctx.sender,
-          connectedAt: ctx.timestamp,
-        });
-      }
-    }
-
-    console.info(`User ${ctx.sender} logged in with email ${normalizedEmail}`);
-  }
-);
-
-export const signup_google = spacetimedb.reducer(
-  { 
-    googleId: t.string(), 
-    email: t.string().optional(), 
-    name: t.string().optional(),
-    avatar: t.string().optional()
-  },
-  (ctx, { googleId, email, name, avatar }) => {
-    if (!googleId || googleId.trim().length === 0) {
-      throw new SenderError('Google ID is required');
-    }
-    
-    // Check if Google ID already exists
-    const existingAuth = ctx.db.googleAuth.googleId.find(googleId);
-    if (existingAuth) {
-      throw new SenderError('Google account already registered');
-    }
-    
-    // Check if user already exists
-    let user = ctx.db.user.identity.find(ctx.sender);
-    if (user) {
-      // Update existing user
-      ctx.db.user.identity.update({
-        ...user,
-        name: name?.trim() || user.name,
-        online: true,
-        avatar: avatar || user.avatar,
-        authMethod: 'google',
-        lastIpAddress: user.lastIpAddress, // Keep existing IP
-      });
-    } else {
-      // Create new user record
-      user = ctx.db.user.insert({
-        identity: ctx.sender,
-        name: name?.trim() || undefined,
-        online: true,
-        avatar: avatar || undefined,
-        authMethod: 'google',
-        lastIpAddress: undefined, // Will be set on next connection
-      });
-      
-      // If this is the first authenticated user and no admin role exists, make them admin
-      const allUsers = [...ctx.db.user.iter()];
-      const authenticatedUsers = allUsers.filter(u => u.authMethod);
-      const allRoles = [...ctx.db.role.iter()];
-      const hasAdminRole = allRoles.some(r => (r.permissions & Permissions.ADMIN) !== 0n);
-      
-      if (authenticatedUsers.length === 1 && !hasAdminRole) {
-        try {
-          const adminRole = ctx.db.role.insert({
-            id: 0n,
-            channelId: undefined,
-            name: 'Admin',
-            color: '#f04747',
-            permissions: Permissions.ADMIN,
-            position: 1000n,
-            createdAt: ctx.timestamp,
-            createdBy: ctx.sender,
-          });
-          
-          ctx.db.roleMember.insert({
-            id: 0n,
-            roleId: adminRole.id,
-            userId: ctx.sender,
-            assignedAt: ctx.timestamp,
-            assignedBy: undefined,
-          });
-          
-          console.info(`First authenticated user ${ctx.sender} automatically assigned admin role`);
-        } catch (err) {
-          console.error('Error creating admin role:', err);
-        }
-      }
-    }
-    
-    // Create Google auth record
-    ctx.db.googleAuth.insert({
-      googleId: googleId.trim(),
-      identity: ctx.sender,
-      email: email?.toLowerCase().trim() || undefined,
-      name: name?.trim() || undefined,
-      avatar: avatar || undefined,
-      createdAt: ctx.timestamp,
-    });
-    
-    console.info(`User ${ctx.sender} signed up with Google ID ${googleId}`);
-  }
-);
-
-export const login_google = spacetimedb.reducer(
-  {
-    googleId: t.string(),
-    email: t.string().optional(),
-    name: t.string().optional(),
-    avatar: t.string().optional(),
-  },
-  (ctx, { googleId, email, name, avatar }) => {
-    if (!googleId || googleId.trim().length === 0) {
-      throw new SenderError('Google ID is required');
-    }
-
-    const trimmedGoogleId = googleId.trim();
-
-    // Find Google auth record
-    let googleAuth = ctx.db.googleAuth.googleId.find(trimmedGoogleId);
-
-    // If no account exists, create one (first-time Google login = auto-signup)
-    if (!googleAuth) {
-      // Check if Google ID already exists (race condition guard)
-      const existingAuth = ctx.db.googleAuth.googleId.find(trimmedGoogleId);
-      if (existingAuth) {
-        googleAuth = existingAuth;
-      } else {
-        // Create user and googleAuth (same logic as signup_google)
-        let user = ctx.db.user.identity.find(ctx.sender);
-        if (!user) {
-          user = ctx.db.user.insert({
-            identity: ctx.sender,
-            name: name?.trim() || undefined,
-            online: true,
-            avatar: avatar || undefined,
-            authMethod: 'google',
-            lastIpAddress: undefined,
-          });
-
-          // First authenticated user gets admin
-          const allUsers = [...ctx.db.user.iter()];
-          const authenticatedUsers = allUsers.filter(u => u.authMethod);
-          const allRoles = [...ctx.db.role.iter()];
-          const hasAdminRole = allRoles.some(r => (r.permissions & Permissions.ADMIN) !== 0n);
-
-          if (authenticatedUsers.length === 1 && !hasAdminRole) {
-            try {
-              const adminRole = ctx.db.role.insert({
-                id: 0n,
-                channelId: undefined,
-                name: 'Admin',
-                color: '#f04747',
-                permissions: Permissions.ADMIN,
-                position: 1000n,
-                createdAt: ctx.timestamp,
-                createdBy: ctx.sender,
-              });
-
-              ctx.db.roleMember.insert({
-                id: 0n,
-                roleId: adminRole.id,
-                userId: ctx.sender,
-                assignedAt: ctx.timestamp,
-                assignedBy: undefined,
-              });
-
-              console.info(`First authenticated user ${ctx.sender} automatically assigned admin role`);
-            } catch (err) {
-              console.error('Error creating admin role:', err);
-            }
-          }
-        } else {
-          ctx.db.user.identity.update({
-            ...user,
-            name: name?.trim() || user.name,
-            online: true,
-            avatar: avatar || user.avatar,
-            authMethod: 'google',
-            lastIpAddress: user.lastIpAddress,
-          });
-        }
-
-        ctx.db.googleAuth.insert({
-          googleId: trimmedGoogleId,
-          identity: ctx.sender,
-          email: email?.toLowerCase().trim() || undefined,
-          name: name?.trim() || undefined,
-          avatar: avatar || undefined,
-          createdAt: ctx.timestamp,
-        });
-
-        console.info(`User ${ctx.sender} signed up with Google ID ${trimmedGoogleId} (first login)`);
-        return;
-      }
-    }
-
-    // Existing account: when session (ctx.sender) differs from account (googleAuth.identity),
-    // do NOT create user for session - only account has user row (no duplicates)
-    const originalUser = ctx.db.user.identity.find(googleAuth.identity);
-    const isLinked = !googleAuth.identity.isEqual(ctx.sender);
-
-    if (!isLinked) {
-      let user = ctx.db.user.identity.find(ctx.sender);
-      if (!user) {
-        ctx.db.user.insert({
-          identity: ctx.sender,
-          name: originalUser?.name ?? googleAuth.name ?? name?.trim() ?? undefined,
-          online: true,
-          avatar: originalUser?.avatar ?? googleAuth.avatar ?? avatar ?? undefined,
-          authMethod: 'google',
-          lastIpAddress: undefined,
-        });
-      } else {
-        ctx.db.user.identity.update({
-          ...user,
-          name: user.name ?? originalUser?.name ?? googleAuth.name ?? name?.trim(),
-          online: true,
-          avatar: user.avatar ?? originalUser?.avatar ?? googleAuth.avatar ?? avatar,
-          authMethod: 'google',
-          lastIpAddress: user.lastIpAddress,
-        });
-      }
-    } else {
-      // Linked session: ensure account has user, update it. Do NOT create user for ctx.sender.
-      if (!originalUser) {
-        ctx.db.user.insert({
-          identity: googleAuth.identity,
-          name: googleAuth.name ?? name?.trim() ?? undefined,
-          online: true,
-          avatar: googleAuth.avatar ?? avatar ?? undefined,
-          authMethod: 'google',
-          lastIpAddress: undefined,
-        });
-      } else {
-        ctx.db.user.identity.update({
-          ...originalUser,
-          online: true,
-          name: originalUser.name ?? googleAuth.name ?? name?.trim(),
-          avatar: originalUser.avatar ?? googleAuth.avatar ?? avatar,
-        });
-      }
-    }
-
-    // Copy role memberships from account to session
-    const originalRoleMembers = [...ctx.db.roleMember.iter()].filter(
-      rm => rm.userId.isEqual(googleAuth.identity)
-    );
-    for (const rm of originalRoleMembers) {
-      const alreadyAssigned = [...ctx.db.roleMember.iter()].some(
-        m => m.roleId === rm.roleId && m.userId.isEqual(ctx.sender)
-      );
-      if (!alreadyAssigned) {
-        ctx.db.roleMember.insert({
-          id: 0n,
-          roleId: rm.roleId,
-          userId: ctx.sender,
-          assignedAt: ctx.timestamp,
-          assignedBy: rm.assignedBy,
-        });
-      }
-    }
-
-    // Copy channel memberships from account to session
-    const originalChannelMembers = [...ctx.db.channelMember.iter()].filter(
-      m => m.userId.isEqual(googleAuth.identity)
-    );
-    for (const m of originalChannelMembers) {
-      const alreadyMember = [...ctx.db.channelMember.iter()].some(
-        cm => cm.channelId === m.channelId && cm.userId.isEqual(ctx.sender)
-      );
-      if (!alreadyMember) {
-        ctx.db.channelMember.insert({
-          id: 0n,
-          channelId: m.channelId,
-          userId: ctx.sender,
-          joinedAt: ctx.timestamp,
-        });
-      }
-    }
-
-    // Link session to account identity when they differ
-    if (!googleAuth.identity.isEqual(ctx.sender)) {
-      const existingLink = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
-      if (existingLink) {
-        ctx.db.identityLink.sessionIdentity.update({
-          ...existingLink,
-          accountIdentity: googleAuth.identity,
-          linkedAt: ctx.timestamp,
-        });
-      } else {
-        ctx.db.identityLink.insert({
-          sessionIdentity: ctx.sender,
-          accountIdentity: googleAuth.identity,
-          linkedAt: ctx.timestamp,
-        });
-      }
-      const existingReplaced = ctx.db.replacedIdentity.oldIdentity.find(ctx.sender);
-      if (existingReplaced) {
-        ctx.db.replacedIdentity.oldIdentity.update({
-          ...existingReplaced,
-          newIdentity: googleAuth.identity,
-          replacedAt: ctx.timestamp,
-        });
-      } else {
-        ctx.db.replacedIdentity.insert({
-          oldIdentity: ctx.sender,
-          newIdentity: googleAuth.identity,
-          replacedAt: ctx.timestamp,
-        });
-      }
-      // clientConnected may have already added this session; upsert to avoid duplicate-key panic
-      const existingSession = ctx.db.activeSession.sessionIdentity.find(ctx.sender);
-      if (existingSession) {
-        ctx.db.activeSession.sessionIdentity.update({
-          ...existingSession,
-          connectedAt: ctx.timestamp,
-        });
-      } else {
-        ctx.db.activeSession.insert({
-          sessionIdentity: ctx.sender,
-          connectedAt: ctx.timestamp,
-        });
-      }
-    }
-
-    // Set account identity online (for isLinked case, already updated above)
-    const accountUser = ctx.db.user.identity.find(googleAuth.identity);
-    if (accountUser) {
-      ctx.db.user.identity.update({ ...accountUser, online: true });
-    }
-
-    console.info(`User ${ctx.sender} logged in with Google ID ${trimmedGoogleId}`);
   }
 );
 
@@ -1862,50 +1166,14 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
     connectionAddress = String(ctx.address);
   }
 
-  // Track this session as connected (used to know when to set account offline)
-  const existingSession = ctx.db.activeSession.sessionIdentity.find(ctx.sender);
-  if (existingSession) {
-    ctx.db.activeSession.sessionIdentity.update({
-      ...existingSession,
-      connectedAt: ctx.timestamp,
-    });
-  } else {
-    ctx.db.activeSession.insert({
-      sessionIdentity: ctx.sender,
-      connectedAt: ctx.timestamp,
-    });
-  }
-
   const user = ctx.db.user.identity.find(ctx.sender);
-  const link = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
 
   if (user) {
-    // User exists (non-linked session) - update online status
     ctx.db.user.identity.update({
       ...user,
       online: true,
       lastIpAddress: connectionAddress || user.lastIpAddress,
     });
-    if (link) {
-      const accountUser = ctx.db.user.identity.find(link.accountIdentity);
-      if (accountUser) {
-        ctx.db.user.identity.update({
-          ...accountUser,
-          online: true,
-          lastIpAddress: connectionAddress || accountUser.lastIpAddress,
-        });
-      }
-    }
-  } else if (link) {
-    // Linked session: no user row for ctx.sender - only update account user
-    const accountUser = ctx.db.user.identity.find(link.accountIdentity);
-    if (accountUser) {
-      ctx.db.user.identity.update({
-        ...accountUser,
-        online: true,
-        lastIpAddress: connectionAddress || accountUser.lastIpAddress,
-      });
-    }
   } else {
     // SpacetimeAuth: create User from JWT claims when connecting with OIDC token
     const jwt = ctx.senderAuth?.jwt;
@@ -1913,101 +1181,52 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
       const payload = jwt.fullPayload as Record<string, unknown>;
       const name = (typeof payload.name === 'string' ? payload.name : payload.preferred_username as string)?.trim?.() || undefined;
       const avatar = (typeof payload.picture === 'string' ? payload.picture : undefined);
-      let user = ctx.db.user.identity.find(ctx.sender);
-      if (!user) {
-        user = ctx.db.user.insert({
-          identity: ctx.sender,
-          name: name || undefined,
-          online: true,
-          avatar: avatar,
-          authMethod: 'spacetimeauth',
-          lastIpAddress: connectionAddress,
-        });
-        // First SpacetimeAuth user gets admin
-        const allUsers = [...ctx.db.user.iter()];
-        const authenticatedUsers = allUsers.filter(u => u.authMethod);
-        const allRoles = [...ctx.db.role.iter()];
-        const hasAdminRole = allRoles.some(r => (r.permissions & Permissions.ADMIN) !== 0n);
-        if (authenticatedUsers.length === 1 && !hasAdminRole) {
-          try {
-            const adminRole = ctx.db.role.insert({
-              id: 0n,
-              channelId: undefined,
-              name: 'Admin',
-              color: '#f04747',
-              permissions: Permissions.ADMIN,
-              position: 1000n,
-              createdAt: ctx.timestamp,
-              createdBy: ctx.sender,
-            });
-            ctx.db.roleMember.insert({
-              id: 0n,
-              roleId: adminRole.id,
-              userId: ctx.sender,
-              assignedAt: ctx.timestamp,
-              assignedBy: undefined,
-            });
-            console.info(`First SpacetimeAuth user ${ctx.sender} automatically assigned admin role`);
-          } catch (err) {
-            console.error('Error creating admin role:', err);
-          }
-        }
-      } else {
-        ctx.db.user.identity.update({
-          ...user,
-          online: true,
-          name: user.name ?? name,
-          avatar: user.avatar ?? avatar,
-          lastIpAddress: connectionAddress || user.lastIpAddress,
-        });
-      }
-      console.info(`User ${ctx.sender} connected via SpacetimeAuth`);
-      return;
-    }
-    // Legacy: Check if identity has auth credentials (reconnect before login)
-    const emailCreds = [...ctx.db.emailCredential.iter()].find(c => c.identity.isEqual(ctx.sender));
-    const googleAuths = [...ctx.db.googleAuth.iter()].find(a => a.identity.isEqual(ctx.sender));
-    if (emailCreds || googleAuths) {
-      const authMethod = emailCreds ? 'email' : 'google';
       ctx.db.user.insert({
         identity: ctx.sender,
-        name: undefined,
+        name: name || undefined,
         online: true,
-        avatar: undefined,
-        authMethod: authMethod,
+        avatar: avatar,
+        authMethod: 'spacetimeauth',
         lastIpAddress: connectionAddress,
       });
-      console.info(`User ${ctx.sender} reconnected with existing auth credentials`);
+      // First SpacetimeAuth user gets admin
+      const allUsers = [...ctx.db.user.iter()];
+      const authenticatedUsers = allUsers.filter(u => u.authMethod);
+      const allRoles = [...ctx.db.role.iter()];
+      const hasAdminRole = allRoles.some(r => (r.permissions & Permissions.ADMIN) !== 0n);
+      if (authenticatedUsers.length === 1 && !hasAdminRole) {
+        try {
+          const adminRole = ctx.db.role.insert({
+            id: 0n,
+            channelId: undefined,
+            name: 'Admin',
+            color: '#f04747',
+            permissions: Permissions.ADMIN,
+            position: 1000n,
+            createdAt: ctx.timestamp,
+            createdBy: ctx.sender,
+          });
+          ctx.db.roleMember.insert({
+            id: 0n,
+            roleId: adminRole.id,
+            userId: ctx.sender,
+            assignedAt: ctx.timestamp,
+            assignedBy: undefined,
+          });
+          console.info(`First SpacetimeAuth user ${ctx.sender} automatically assigned admin role`);
+        } catch (err) {
+          console.error('Error creating admin role:', err);
+        }
+      }
+      console.info(`User ${ctx.sender} connected via SpacetimeAuth`);
     }
   }
 });
 
 export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
-  // Remove from activeSession first (before checking other sessions)
-  const activeRow = ctx.db.activeSession.sessionIdentity.find(ctx.sender);
-  if (activeRow) {
-    ctx.db.activeSession.sessionIdentity.delete(ctx.sender);
-  }
-
   const user = ctx.db.user.identity.find(ctx.sender);
-  const link = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
-
   if (user) {
     ctx.db.user.identity.update({ ...user, online: false });
-  } else if (link) {
-    // Linked session: set account offline only if no other linked session is connected
-    const otherSessionsForAccount = [...ctx.db.identityLink.iter()].filter(
-      l => l.accountIdentity.isEqual(link.accountIdentity) && !l.sessionIdentity.isEqual(ctx.sender)
-    );
-    const anyStillConnected = otherSessionsForAccount.some(s =>
-      ctx.db.activeSession.sessionIdentity.find(s.sessionIdentity)
-    );
-    if (!anyStillConnected) {
-      const accountUser = ctx.db.user.identity.find(link.accountIdentity);
-      if (accountUser) {
-        ctx.db.user.identity.update({ ...accountUser, online: false });
-      }
-    }
   } else {
     console.warn(
       `Disconnect event for unknown user with identity ${ctx.sender}`

@@ -46,15 +46,11 @@ import JoinVoiceReducer from "./join_voice_reducer";
 import KickUserReducer from "./kick_user_reducer";
 import LeaveChannelReducer from "./leave_channel_reducer";
 import LeaveVoiceReducer from "./leave_voice_reducer";
-import LoginEmailReducer from "./login_email_reducer";
-import LoginGoogleReducer from "./login_google_reducer";
 import RemoveRoleReducer from "./remove_role_reducer";
 import SaveVoiceChunkReducer from "./save_voice_chunk_reducer";
 import SendMessageReducer from "./send_message_reducer";
 import SendVoiceSignalReducer from "./send_voice_signal_reducer";
 import SetNameReducer from "./set_name_reducer";
-import SignupEmailReducer from "./signup_email_reducer";
-import SignupGoogleReducer from "./signup_google_reducer";
 import ToggleVoiceDeafenReducer from "./toggle_voice_deafen_reducer";
 import ToggleVoiceMuteReducer from "./toggle_voice_mute_reducer";
 
@@ -64,7 +60,6 @@ import ToggleVoiceMuteReducer from "./toggle_voice_mute_reducer";
 import ChannelRow from "./channel_table";
 import ChannelMemberRow from "./channel_member_table";
 import MessageRow from "./message_table";
-import ReplacedIdentityRow from "./replaced_identity_table";
 import RoleRow from "./role_table";
 import RoleMemberRow from "./role_member_table";
 import ThreadRow from "./thread_table";
@@ -117,17 +112,6 @@ const tablesSchema = __schema({
       { name: 'message_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, MessageRow),
-  replacedIdentity: __table({
-    name: 'replacedIdentity',
-    indexes: [
-      { accessor: 'oldIdentity', name: 'replacedIdentity_old_identity_idx_btree', algorithm: 'btree', columns: [
-        'oldIdentity',
-      ] },
-    ],
-    constraints: [
-      { name: 'replacedIdentity_old_identity_key', constraint: 'unique', columns: ['oldIdentity'] },
-    ],
-  }, ReplacedIdentityRow),
   role: __table({
     name: 'role',
     indexes: [
@@ -250,15 +234,11 @@ const reducersSchema = __reducers(
   __reducerSchema("kick_user", KickUserReducer),
   __reducerSchema("leave_channel", LeaveChannelReducer),
   __reducerSchema("leave_voice", LeaveVoiceReducer),
-  __reducerSchema("login_email", LoginEmailReducer),
-  __reducerSchema("login_google", LoginGoogleReducer),
   __reducerSchema("remove_role", RemoveRoleReducer),
   __reducerSchema("save_voice_chunk", SaveVoiceChunkReducer),
   __reducerSchema("send_message", SendMessageReducer),
   __reducerSchema("send_voice_signal", SendVoiceSignalReducer),
   __reducerSchema("set_name", SetNameReducer),
-  __reducerSchema("signup_email", SignupEmailReducer),
-  __reducerSchema("signup_google", SignupGoogleReducer),
   __reducerSchema("toggle_voice_deafen", ToggleVoiceDeafenReducer),
   __reducerSchema("toggle_voice_mute", ToggleVoiceMuteReducer),
 );
