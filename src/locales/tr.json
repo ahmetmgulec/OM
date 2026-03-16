@@ -1,0 +1,163 @@
+{
+  "sidebar": {
+    "textChannels": "Metin Kanalları",
+    "voiceChannels": "Ses Kanalları"
+  },
+  "common": {
+    "welcome": "Hoş geldiniz! 👋",
+    "selectChannel": "Bir kanal seçin",
+    "noChannels": "Henüz hiç kanalınız yok.",
+    "createFirstChannel": "İlk kanalınızı oluşturmak için sol taraftaki + butonuna tıklayın.",
+    "createFirstChannelButton": "İlk Kanalı Oluştur",
+    "addUser": "+ Kullanıcı Ekle",
+    "roles": "⚙️ Roller",
+    "editName": "İsim Düzenle",
+    "online": "Online",
+    "offline": "Offline",
+    "kick": "At",
+    "kickUser": "Kullanıcıyı At",
+    "kickConfirm": "Bu kullanıcıyı kanaldan çıkarmak istediğinize emin misiniz?",
+    "ipAddress": "IP Adresi",
+    "ipNotSet": "IP yok"
+  },
+  "auth": {
+    "welcome": "OM'a Hoş Geldiniz",
+    "subtitle": "Discord benzeri bir sohbet uygulaması",
+    "login": "Giriş Yap",
+    "signup": "Kayıt Ol",
+    "email": "E-posta",
+    "password": "Şifre",
+    "confirmPassword": "Şifreyi Onayla",
+    "name": "İsim",
+    "nameOptional": "İsim (Opsiyonel)",
+    "loggingIn": "Giriş yapılıyor...",
+    "signingUp": "Kayıt olunuyor...",
+    "or": "veya",
+    "switchToSignup": "Hesabınız yok mu?",
+    "switchToLogin": "Zaten hesabınız var mı?",
+    "googleLoginFailed": "Google girişi başarısız. Bu site için popup'lara izin verdiğinizden emin olun veya e-posta/şifre ile giriş yapmayı deneyin.",
+    "googleSignupFailed": "Google kaydı başarısız. Bu site için popup'lara izin verdiğinizden emin olun veya e-posta/şifre ile kayıt olmayı deneyin.",
+    "googleNotConfigured": "Google OAuth yapılandırılmamış. Lütfen .env.local dosyanızda VITE_GOOGLE_CLIENT_ID'i ayarlayın.",
+    "passwordsDoNotMatch": "Şifreler eşleşmiyor",
+    "loginFailed": "Giriş başarısız. E-posta ve şifrenizi kontrol edip tekrar deneyin.",
+    "invalidCredentials": "Geçersiz e-posta veya şifre.",
+    "connectionFailed": "Bağlantı kurulamadı",
+    "connectionFailedHint": "Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.",
+    "retry": "Tekrar Dene"
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "displayName": "Görünen İsim",
+    "save": "Kaydet",
+    "logout": "Çıkış Yap"
+  },
+  "channels": {
+    "createChannel": "Kanal Oluştur",
+    "channelType": "Kanal Tipi",
+    "channelTypeText": "Metin",
+    "channelTypeVoice": "Ses",
+    "channelName": "Kanal Adı",
+    "channelDescription": "Açıklama (Opsiyonel)",
+    "create": "Oluştur",
+    "cancel": "İptal"
+  },
+  "roles": {
+    "roleManagement": "Rol Yönetimi",
+    "channelRoles": "Kanal Rolleri",
+    "globalRoles": "Global Roller (Tüm Kanallar İçin)",
+    "newRole": "+ Yeni Rol",
+    "noChannelRoles": "Bu kanal için henüz rol yok",
+    "noGlobalRoles": "Henüz global rol yok",
+    "roleName": "Rol Adı",
+    "roleColor": "Rol Rengi",
+    "assign": "Ata",
+    "remove": "Kaldır",
+    "delete": "Sil",
+    "selectUser": "Kullanıcı seç...",
+    "users": "kullanıcı",
+    "permissions": "İzinler",
+    "tip": "İpucu:",
+    "tipText": "\"Yönetici\" seçeneğini işaretlerseniz tüm izinler otomatik olarak verilir. Admin olmadan tüm izinleri seçemezsiniz.",
+    "cannotDeleteOwnAdmin": "Kendi adminliğinizi silemezsiniz",
+    "cannotDeleteOtherAdmin": "Başka bir kullanıcının admin rolünü silemezsiniz",
+    "cannotRemoveOwnAdmin": "Kendi adminliğinizi kaldıramazsınız",
+    "cannotRemoveAdmin": "Admin rolü kaldırılamaz",
+    "permissionGroups": {
+      "channel": "Kanal İzinleri",
+      "message": "Mesaj İzinleri",
+      "userManagement": "Kullanıcı Yönetimi",
+      "roleManagement": "Rol Yönetimi",
+      "voice": "Ses İzinleri",
+      "special": "Özel"
+    },
+    "permissions": {
+      "createChannel": "Kanal Oluştur",
+      "deleteChannel": "Kanal Sil",
+      "manageChannel": "Kanal Yönet",
+      "sendMessage": "Mesaj Gönder",
+      "editMessage": "Mesaj Düzenle",
+      "deleteMessage": "Mesaj Sil",
+      "kickUser": "Kullanıcı At",
+      "banUser": "Kullanıcı Yasakla",
+      "addUser": "Kullanıcı Ekle",
+      "removeUser": "Kullanıcı Çıkar",
+      "manageRoles": "Rolleri Yönet",
+      "assignRoles": "Rol Ata",
+      "joinVoice": "Sesli Odaya Katıl",
+      "speakInVoice": "Sesli Odada Konuş",
+      "muteOthers": "Diğerlerini Sustur",
+      "admin": "Yönetici (Tüm İzinler)"
+    }
+  },
+  "users": {
+    "addToChannel": "Kullanıcı Ekle",
+    "selectUserToAdd": "Eklenecek kullanıcıyı seçin",
+    "noUsersAvailable": "Eklenecek kullanıcı yok",
+    "alreadyMember": "Bu kullanıcı zaten kanalın üyesi",
+    "kickFailed": "Kullanıcı atılamadı"
+  },
+  "messages": {
+    "empty": "Henüz mesaj yok. Konuşmayı başlatın!"
+  },
+  "input": {
+    "placeholder": "Bir mesaj yazın...",
+    "send": "Gönder"
+  },
+  "voiceRecordings": {
+    "title": "Ses Kayıtları",
+    "collapse": "Kayıtları daralt",
+    "expand": "Kayıtları genişlet",
+    "empty": "Henüz kayıt yok",
+    "listen": "Dinle",
+    "play": "Oynat",
+    "playing": "Oynatılıyor",
+    "duration": "~{minutes} dk",
+    "dateFormat": "d MMM, HH:mm",
+    "errorEmpty": "Kayıt boş veya okunamıyor",
+    "errorPlayback": "Kayıt oynatılamadı",
+    "errorStart": "Oynatma başlatılamadı",
+    "download": "İndir"
+  },
+  "voice": {
+    "join": "Katıl",
+    "leave": "Ayrıl",
+    "mute": "Sustur",
+    "unmute": "Susturmayı Kaldır",
+    "deafen": "Sağırlaştır",
+    "undeafen": "Sağırlaştırmayı Kaldır",
+    "micPermissionDenied": "Mikrofon erişimi reddedildi. Sesli sohbet için mikrofon izni verin.",
+    "mustBeMember": "Sesli sohbete katılmak için kanal üyesi olmalısınız.",
+    "joinFailed": "Sesli sohbete katılınamadı. Lütfen tekrar deneyin."
+  },
+  "errors": {
+    "sendMessageFailed": "Mesaj gönderilemedi.",
+    "channelNameEmpty": "Kanal adı boş olamaz.",
+    "channelNameTooLong": "Kanal adı en fazla 100 karakter olabilir.",
+    "createChannelFailed": "Kanal oluşturulamadı.",
+    "joinChannelFailed": "Kanala katılınamadı.",
+    "displayNameEmpty": "İsim boş olamaz.",
+    "displayNameTooLong": "İsim en fazla 32 karakter olabilir.",
+    "userNotReady": "Hesabınızın oluşturulması için lütfen bir süre bekleyip tekrar deneyin.",
+    "setNameFailed": "İsim güncellenemedi."
+  }
+}

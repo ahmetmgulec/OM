@@ -1,0 +1,64 @@
+.user-list {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+  color: #dcddde;
+}
+
+.user-section {
+  margin-bottom: 24px;
+}
+
+.user-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8e9297;
+  text-transform: uppercase;
+  margin: 0 0 8px 0;
+  padding: 0 8px;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  margin-bottom: 2px;
+}
+
+.user-item:hover {
+  background-color: #393c43;
+}
+
+.user-item.current-user {
+  background-color: #393c43;
+  font-weight: 600;
+}
+
+.user-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.user-status.online {
+  background-color: #43b581;
+}
+
+.user-status.offline {
+  background-color: #747f8d;
+}
+
+.user-name {
+  font-size: 14px;
+  color: #dcddde;
+}
+
+.user-item.current-user .user-name {
+  color: #fff;
+}

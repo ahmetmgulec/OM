@@ -1,0 +1,140 @@
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #2f3136;
+  border-radius: 4px;
+}
+
+.voice-controls.connected {
+  background: #5865f2;
+}
+
+.voice-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.voice-indicator {
+  font-size: 16px;
+}
+
+.participants-count {
+  font-weight: 500;
+}
+
+.voice-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.voice-btn {
+  background: rgba(0, 0, 0, 0.2);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, opacity 0.2s;
+  min-width: 36px;
+  height: 36px;
+}
+
+.voice-btn:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.voice-btn:active {
+  opacity: 0.7;
+}
+
+.voice-btn.muted {
+  background: #f04747;
+}
+
+.voice-btn.muted:hover {
+  background: #d84040;
+}
+
+.voice-btn.deafened {
+  background: #f04747;
+}
+
+.voice-btn.deafened:hover {
+  background: #d84040;
+}
+
+.join-btn {
+  background: #43b581;
+  padding: 8px 16px;
+  gap: 8px;
+}
+
+.join-btn:hover {
+  background: #3ca374;
+}
+
+.join-btn span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.leave-btn {
+  background: #f04747;
+  padding: 8px 16px;
+  gap: 8px;
+}
+
+.leave-btn:hover {
+  background: #d84040;
+}
+
+.leave-btn span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.voice-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Recording button */
+.voice-btn.record-btn {
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.voice-btn.record-btn.recording {
+  background: #f04747;
+  animation: record-pulse 1.5s ease-in-out infinite;
+}
+
+.voice-btn.record-btn.recording:hover {
+  background: #d84040;
+}
+
+.record-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.voice-btn.record-btn.recording .record-dot {
+  background: #fff;
+}
+
+@keyframes record-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}

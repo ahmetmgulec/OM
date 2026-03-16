@@ -1,0 +1,210 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background-color: #36393f;
+  color: #dcddde;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  overflow: hidden;
+}
+
+.loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: #36393f;
+  color: #dcddde;
+}
+
+.loading-screen h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #36393f;
+  min-width: 0;
+}
+
+.channel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 48px;
+  border-bottom: 1px solid #202225;
+  background-color: #36393f;
+  box-shadow: 0 1px 0 rgba(4, 4, 5, 0.2), 0 1.5px 0 rgba(6, 6, 7, 0.05), 0 2px 0 rgba(4, 4, 5, 0.05);
+}
+
+.channel-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-name-btn {
+  background: none;
+  border: none;
+  color: #b9bbbe;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.15s;
+}
+
+.edit-name-btn:hover {
+  background-color: #3c3f44;
+}
+
+.name-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.name-form input {
+  background-color: #202225;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: #dcddde;
+  font-size: 14px;
+  width: 150px;
+}
+
+.name-form input:focus {
+  outline: none;
+  background-color: #1e1f22;
+}
+
+.name-form button {
+  background-color: #5865f2;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.name-form button:hover {
+  background-color: #4752c4;
+}
+
+/* Right sidebar - users, language, profile */
+.right-sidebar {
+  width: 240px;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  background-color: #2f3136;
+  border-left: 1px solid #202225;
+}
+
+.right-sidebar-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #202225;
+  flex-shrink: 0;
+}
+
+.right-sidebar-display-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.right-sidebar .settings-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.right-sidebar .settings-btn:hover {
+  opacity: 0.8;
+}
+
+.messages-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: #36393f;
+}
+
+.empty-channel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #72767d;
+  font-size: 16px;
+  padding: 40px;
+}
+
+.welcome-message {
+  text-align: center;
+  max-width: 500px;
+}
+
+.welcome-message h2 {
+  color: #fff;
+  margin-bottom: 16px;
+  font-size: 28px;
+}
+
+.welcome-message p {
+  color: #b9bbbe;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #2f3136;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #202225;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1a1c1f;
+}

@@ -1,0 +1,144 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #36393f;
+  border-radius: 8px;
+  padding: 24px;
+  width: 90%;
+  max-width: 440px;
+  color: #dcddde;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+}
+
+.modal-content h2 {
+  margin: 0 0 20px 0;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #b9bbbe;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.channel-type-selector {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.channel-type-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background-color: #202225;
+  border: 2px solid #202225;
+  border-radius: 6px;
+  color: #b9bbbe;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.channel-type-btn:hover {
+  background-color: #292b2f;
+  color: #fff;
+}
+
+.channel-type-btn.active {
+  background-color: #5865f2;
+  border-color: #4752c4;
+  color: #fff;
+}
+
+.channel-type-icon {
+  font-size: 18px;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  background-color: #202225;
+  border: none;
+  border-radius: 4px;
+  padding: 10px;
+  color: #dcddde;
+  font-size: 16px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  background-color: #1e1f22;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.form-actions button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.form-actions button[type="button"] {
+  background-color: transparent;
+  color: #fff;
+}
+
+.form-actions button[type="button"]:hover {
+  text-decoration: underline;
+}
+
+.form-actions button[type="submit"] {
+  background-color: #5865f2;
+  color: #fff;
+}
+
+.form-actions button[type="submit"]:hover:not(:disabled) {
+  background-color: #4752c4;
+}
+
+.form-actions button[type="submit"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,0 +1,363 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// SPACETIMEDB MODULE - Discord Clone Backend
+// ─────────────────────────────────────────────────────────────────────────────
+import { schema, t, table, SenderError } from 'spacetimedb/server';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TABLES
+// ─────────────────────────────────────────────────────────────────────────────
+
+// User table - stores user information
+const user = table(
+  { 
+    name: 'user', 
+    public: true,
+    indexes: []
+  },
+  {
+    identity: t.identity().primaryKey(),
+    name: t.string().optional(),
+    online: t.bool(),
+    avatar: t.string().optional(),
+  }
+);
+
+// Channel table - stores channels (like Discord servers/channels)
+const channel = table(
+  {
+    name: 'channel',
+    public: true,
+    indexes: [],
+  },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    name: t.string(),
+    description: t.string().optional(),
+    createdAt: t.timestamp(),
+    createdBy: t.identity().optional(), // Optional to allow system-created channels
+  }
+);
+
+// Thread table - stores threads within channels
+const thread = table(
+  {
+    name: 'thread',
+    public: true,
+    indexes: [
+      { name: 'thread_by_channel', algorithm: 'btree', columns: ['channelId'] },
+    ],
+  },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    channelId: t.u64(),
+    name: t.string(),
+    createdAt: t.timestamp(),
+    createdBy: t.identity().optional(), // Optional for consistency
+  }
+);
+
+// Message table - stores messages in channels or threads
+const message = table(
+  {
+    name: 'message',
+    public: true,
+    indexes: [
+      // Only index on sender - channelId and threadId are optional and may cause issues
+      { name: 'message_by_sender', algorithm: 'btree', columns: ['sender'] },
+    ],
+  },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    sender: t.identity(),
+    channelId: t.u64().optional(), // null if message is in a thread
+    threadId: t.u64().optional(), // null if message is in a channel
+    text: t.string(),
+    sent: t.timestamp(),
+    editedAt: t.timestamp().optional(),
+  }
+);
+
+// ChannelMember table - tracks which users are in which channels
+const channelMember = table(
+  {
+    name: 'channelMember',
+    public: true,
+    indexes: [
+      { name: 'channel_member_by_channel', algorithm: 'btree', columns: ['channelId'] },
+      { name: 'channel_member_by_user', algorithm: 'btree', columns: ['userId'] },
+      // Removed multi-column index temporarily to test if it's causing the HTTP 500
+    ],
+  },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    channelId: t.u64(),
+    userId: t.identity(),
+    joinedAt: t.timestamp(),
+  }
+);
+
+const spacetimedb = schema({ user, channel, thread, message, channelMember });
+export default spacetimedb;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VALIDATION FUNCTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function validateName(name: string) {
+  if (!name || name.trim().length === 0) {
+    throw new SenderError('Names must not be empty');
+  }
+  if (name.length > 32) {
+    throw new SenderError('Names must be 32 characters or less');
+  }
+}
+
+function validateMessage(text: string) {
+  if (!text || text.trim().length === 0) {
+    throw new SenderError('Messages must not be empty');
+  }
+  if (text.length > 2000) {
+    throw new SenderError('Messages must be 2000 characters or less');
+  }
+}
+
+function validateChannelName(name: string) {
+  if (!name || name.trim().length === 0) {
+    throw new SenderError('Channel names must not be empty');
+  }
+  if (name.length > 100) {
+    throw new SenderError('Channel names must be 100 characters or less');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REDUCERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const set_name = spacetimedb.reducer(
+  { name: t.string() },
+  (ctx, { name }) => {
+    validateName(name);
+    const user = ctx.db.user.identity.find(ctx.sender);
+    if (!user) throw new SenderError('Cannot set name for unknown user');
+    console.info(`User ${ctx.sender} sets name to ${name}`);
+    ctx.db.user.identity.update({ ...user, name });
+  }
+);
+
+export const create_channel = spacetimedb.reducer(
+  { name: t.string(), description: t.string().optional() },
+  (ctx, { name, description }) => {
+    validateChannelName(name);
+    const channel = ctx.db.channel.insert({
+      id: 0n, // Placeholder for auto-increment
+      name,
+      description,
+      createdAt: ctx.timestamp,
+      createdBy: ctx.sender,
+    });
+    
+    // Automatically add creator as a member
+    ctx.db.channelMember.insert({
+      id: 0n,
+      channelId: channel.id,
+      userId: ctx.sender,
+      joinedAt: ctx.timestamp,
+    });
+    
+    console.info(`User ${ctx.sender} created channel ${name} (${channel.id})`);
+  }
+);
+
+export const create_thread = spacetimedb.reducer(
+  { channelId: t.u64(), name: t.string() },
+  (ctx, { channelId, name }) => {
+    validateChannelName(name);
+    const channel = ctx.db.channel.id.find(channelId);
+    if (!channel) {
+      throw new SenderError('Channel not found');
+    }
+    
+    // Check if user is a member of the channel
+    const channelMembers = [...ctx.db.channelMember.iter()].filter(m => m.channelId === channelId);
+    const member = channelMembers.find(m => m.userId.isEqual(ctx.sender));
+    
+    if (!member) {
+      throw new SenderError('You must be a member of the channel to create threads');
+    }
+    
+    const thread = ctx.db.thread.insert({
+      id: 0n, // Placeholder for auto-increment
+      channelId,
+      name,
+      createdAt: ctx.timestamp,
+      createdBy: ctx.sender,
+    });
+    
+    console.info(`User ${ctx.sender} created thread ${name} in channel ${channelId} (${thread.id})`);
+  }
+);
+
+export const join_channel = spacetimedb.reducer(
+  { channelId: t.u64() },
+  (ctx, { channelId }) => {
+    const channel = ctx.db.channel.id.find(channelId);
+    if (!channel) {
+      throw new SenderError('Channel not found');
+    }
+    
+    // Check if already a member
+    const channelMembers = [...ctx.db.channelMember.iter()].filter(m => m.channelId === channelId);
+    const existingMember = channelMembers.find(m => m.userId.isEqual(ctx.sender));
+    
+    if (existingMember) {
+      throw new SenderError('You are already a member of this channel');
+    }
+    
+    ctx.db.channelMember.insert({
+      id: 0n,
+      channelId,
+      userId: ctx.sender,
+      joinedAt: ctx.timestamp,
+    });
+    
+    console.info(`User ${ctx.sender} joined channel ${channelId}`);
+  }
+);
+
+export const leave_channel = spacetimedb.reducer(
+  { channelId: t.u64() },
+  (ctx, { channelId }) => {
+    const channelMembers = [...ctx.db.channelMember.iter()].filter(m => m.channelId === channelId);
+    const member = channelMembers.find(m => m.userId.isEqual(ctx.sender));
+    
+    if (!member) {
+      throw new SenderError('You are not a member of this channel');
+    }
+    
+    ctx.db.channelMember.delete(member);
+    console.info(`User ${ctx.sender} left channel ${channelId}`);
+  }
+);
+
+export const send_message = spacetimedb.reducer(
+  { 
+    text: t.string(), 
+    channelId: t.u64().optional(), 
+    threadId: t.u64().optional() 
+  },
+  (ctx, { text, channelId, threadId }) => {
+    validateMessage(text);
+    
+    // Must specify either channelId or threadId, but not both
+    if (!channelId && !threadId) {
+      throw new SenderError('Must specify either channelId or threadId');
+    }
+    if (channelId && threadId) {
+      throw new SenderError('Cannot specify both channelId and threadId');
+    }
+    
+    if (channelId) {
+      // Verify channel exists
+      const channel = ctx.db.channel.id.find(channelId);
+      if (!channel) {
+        throw new SenderError('Channel not found');
+      }
+      
+      // Verify user is a member
+      const channelMembers = [...ctx.db.channelMember.iter()].filter(m => m.channelId === channelId);
+      const member = channelMembers.find(m => m.userId.isEqual(ctx.sender));
+      
+      if (!member) {
+        throw new SenderError('You must be a member of the channel to send messages');
+      }
+    }
+    
+    if (threadId) {
+      // Verify thread exists
+      const thread = ctx.db.thread.id.find(threadId);
+      if (!thread) {
+        throw new SenderError('Thread not found');
+      }
+      
+      // Verify user is a member of the parent channel
+      const channelMembers = [...ctx.db.channelMember.iter()].filter(m => m.channelId === thread.channelId);
+      const member = channelMembers.find(m => m.userId.isEqual(ctx.sender));
+      
+      if (!member) {
+        throw new SenderError('You must be a member of the channel to send messages in threads');
+      }
+    }
+    
+    ctx.db.message.insert({
+      id: 0n, // Placeholder for auto-increment
+      sender: ctx.sender,
+      channelId: channelId || undefined,
+      threadId: threadId || undefined,
+      text,
+      sent: ctx.timestamp,
+      editedAt: undefined,
+    });
+    
+    console.info(`User ${ctx.sender} sent message in ${channelId ? `channel ${channelId}` : `thread ${threadId}`}`);
+  }
+);
+
+export const edit_message = spacetimedb.reducer(
+  { messageId: t.u64(), text: t.string() },
+  (ctx, { messageId, text }) => {
+    validateMessage(text);
+    const message = ctx.db.message.id.find(messageId);
+    if (!message) {
+      throw new SenderError('Message not found');
+    }
+    
+    // Only the sender can edit their message
+    if (!message.sender.isEqual(ctx.sender)) {
+      throw new SenderError('You can only edit your own messages');
+    }
+    
+    ctx.db.message.id.update({
+      ...message,
+      text,
+      editedAt: ctx.timestamp,
+    });
+    
+    console.info(`User ${ctx.sender} edited message ${messageId}`);
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INITIALIZATION & CONNECTION HANDLERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Called when the module is initially published
+export const init = spacetimedb.init(ctx => {
+  // Initialize module - channels will be created lazily when needed
+  console.info('Module initialized');
+});
+
+export const onConnect = spacetimedb.clientConnected(ctx => {
+  const user = ctx.db.user.identity.find(ctx.sender);
+  if (user) {
+    ctx.db.user.identity.update({ ...user, online: true });
+  } else {
+    ctx.db.user.insert({
+      name: undefined,
+      identity: ctx.sender,
+      online: true,
+      avatar: undefined,
+    });
+  }
+});
+
+export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
+  const user = ctx.db.user.identity.find(ctx.sender);
+  if (user) {
+    ctx.db.user.identity.update({ ...user, online: false });
+  } else {
+    console.warn(
+      `Disconnect event for unknown user with identity ${ctx.sender}`
+    );
+  }
+});
