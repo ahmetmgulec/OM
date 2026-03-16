@@ -13,6 +13,7 @@ import { AddUserToChannelModal } from './components/AddUserToChannelModal';
 import { RoleManagementModal } from './components/RoleManagementModal';
 import { SettingsModal } from './components/SettingsModal';
 import { useLogout } from './contexts/LogoutContext';
+import { isSpacetimeAuthConfigured } from './config/auth';
 import { VoiceControls } from './components/VoiceControls';
 import { VoiceRecordings } from './components/VoiceRecordings';
 import { AuthScreen } from './components/AuthScreen';
@@ -318,8 +319,19 @@ function App() {
   const resolvedIdentity = replacedIdentities.find(r => r.oldIdentity.isEqual(identity))?.newIdentity ?? identity;
   const currentUser = users.find(u => u.identity.isEqual(resolvedIdentity));
   
-  // Show auth screen if user is not authenticated
+  // Show auth screen if user is not authenticated (legacy flow only)
+  // With SpacetimeAuth, we never show AuthScreen - User is created by backend on connect.
+  // Show loading while waiting for User row to sync.
   if (!currentUser || !currentUser.authMethod) {
+    if (isSpacetimeAuthConfigured()) {
+      return (
+        <div className="app-container">
+          <div className="loading-screen">
+            <h1>{t('auth.loading') ?? 'Setting up your account...'}</h1>
+          </div>
+        </div>
+      );
+    }
     return <AuthScreen />;
   }
 
