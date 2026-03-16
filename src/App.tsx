@@ -86,16 +86,18 @@ function App() {
     console.log('Users:', users.length);
   }, [channels, channelMembers, messages, users]);
 
-  // Get channels the current user is a member of
+  // Get channels the current user is a member of.
+  // Use resolved identity (account) when linked so we see channels created with the original account.
   const userChannels = useMemo(() => {
     if (!identity) return [];
+    const resolvedId = replacedIdentities.find(r => r.oldIdentity.isEqual(identity))?.newIdentity ?? identity;
     const memberChannelIds = new Set(
       channelMembers
-        .filter(m => m.userId.isEqual(identity))
+        .filter(m => m.userId.isEqual(resolvedId) || m.userId.isEqual(identity))
         .map(m => m.channelId)
     );
     return channels.filter(c => memberChannelIds.has(c.id));
-  }, [channels, channelMembers, identity]);
+  }, [channels, channelMembers, identity, replacedIdentities]);
 
   // Get messages for the selected channel
   const channelMessages = useMemo(() => {
