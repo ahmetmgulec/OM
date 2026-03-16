@@ -12,7 +12,7 @@ import { CreateChannelModal } from './components/CreateChannelModal';
 import { AddUserToChannelModal } from './components/AddUserToChannelModal';
 import { RoleManagementModal } from './components/RoleManagementModal';
 import { SettingsModal } from './components/SettingsModal';
-import { logout } from './lib/auth';
+import { useLogout } from './contexts/LogoutContext';
 import { VoiceControls } from './components/VoiceControls';
 import { VoiceRecordings } from './components/VoiceRecordings';
 import { AuthScreen } from './components/AuthScreen';
@@ -50,6 +50,7 @@ function App() {
     enabled: connected && !!identity && !!selectedChannelId,
     onError: (msg) => setNotification({ message: msg, type: 'error' }),
   });
+  const logout = useLogout();
   const setName = useReducer(typedReducers.setName);
   const sendMessage = useReducer(typedReducers.sendMessage);
   const createChannel = useReducer(typedReducers.createChannel);
@@ -594,7 +595,7 @@ function App() {
         onClose={() => setShowSettingsModal(false)}
         displayName={displayName}
         onSubmitName={handleSubmitName}
-        onLogout={logout}
+        onLogout={() => logout()}
         onOpenRoles={() => {
           setShowSettingsModal(false);
           setShowRoleModal(true);

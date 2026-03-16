@@ -1907,7 +1907,64 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
       });
     }
   } else {
-    // Check if identity has auth credentials (reconnect before login)
+    // SpacetimeAuth: create User from JWT claims when connecting with OIDC token
+    const jwt = ctx.senderAuth?.jwt;
+    if (jwt && jwt.issuer === 'https://auth.spacetimedb.com/oidc') {
+      const payload = jwt.fullPayload as Record<string, unknown>;
+      const name = (typeof payload.name === 'string' ? payload.name : payload.preferred_username as string)?.trim?.() || undefined;
+      const avatar = (typeof payload.picture === 'string' ? payload.picture : undefined);
+      let user = ctx.db.user.identity.find(ctx.sender);
+      if (!user) {
+        user = ctx.db.user.insert({
+          identity: ctx.sender,
+          name: name || undefined,
+          online: true,
+          avatar: avatar,
+          authMethod: 'spacetimeauth',
+          lastIpAddress: connectionAddress,
+        });
+        // First SpacetimeAuth user gets admin
+        const allUsers = [...ctx.db.user.iter()];
+        const authenticatedUsers = allUsers.filter(u => u.authMethod);
+        const allRoles = [...ctx.db.role.iter()];
+        const hasAdminRole = allRoles.some(r => (r.permissions & Permissions.ADMIN) !== 0n);
+        if (authenticatedUsers.length === 1 && !hasAdminRole) {
+          try {
+            const adminRole = ctx.db.role.insert({
+              id: 0n,
+              channelId: undefined,
+              name: 'Admin',
+              color: '#f04747',
+              permissions: Permissions.ADMIN,
+              position: 1000n,
+              createdAt: ctx.timestamp,
+              createdBy: ctx.sender,
+            });
+            ctx.db.roleMember.insert({
+              id: 0n,
+              roleId: adminRole.id,
+              userId: ctx.sender,
+              assignedAt: ctx.timestamp,
+              assignedBy: undefined,
+            });
+            console.info(`First SpacetimeAuth user ${ctx.sender} automatically assigned admin role`);
+          } catch (err) {
+            console.error('Error creating admin role:', err);
+          }
+        }
+      } else {
+        ctx.db.user.identity.update({
+          ...user,
+          online: true,
+          name: user.name ?? name,
+          avatar: user.avatar ?? avatar,
+          lastIpAddress: connectionAddress || user.lastIpAddress,
+        });
+      }
+      console.info(`User ${ctx.sender} connected via SpacetimeAuth`);
+      return;
+    }
+    // Legacy: Check if identity has auth credentials (reconnect before login)
     const emailCreds = [...ctx.db.emailCredential.iter()].find(c => c.identity.isEqual(ctx.sender));
     const googleAuths = [...ctx.db.googleAuth.iter()].find(a => a.identity.isEqual(ctx.sender));
     if (emailCreds || googleAuths) {

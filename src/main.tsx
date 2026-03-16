@@ -8,6 +8,9 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { DbConnection, ErrorContext } from './module_bindings/index.ts';
 import { LanguageProvider } from './contexts/LanguageContext.tsx';
 import { AUTH_TOKEN_KEY } from './lib/auth';
+import { SpacetimeAuthGate } from './components/SpacetimeAuthGate';
+import { isSpacetimeAuthConfigured } from './config/auth';
+import { LegacyLogoutProvider } from './contexts/LogoutContext';
 
 const HOST = import.meta.env.VITE_SPACETIMEDB_HOST ?? 'ws://localhost:3000';
 const DB_NAME = import.meta.env.VITE_SPACETIMEDB_DB_NAME ?? 'mytestapp';
@@ -179,24 +182,34 @@ const connectionBuilder = DbConnection.builder()
   .onDisconnect(onDisconnect)
   .onConnectError(onConnectError);
 
-// Only use StrictMode in development, and only if Google OAuth is not configured
-// This prevents double initialization warnings from Google OAuth
-const AppWrapper = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'your-google-client-id-here' ? (
-  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-    <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
-      <App />
-    </SpacetimeDBProvider>
-  </GoogleOAuthProvider>
+// Legacy auth (email + optional Google) when SpacetimeAuth is not configured
+const LegacyAppWrapper = (
+  <LegacyLogoutProvider>
+    {GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'your-google-client-id-here' ? (
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
+          <App />
+        </SpacetimeDBProvider>
+      </GoogleOAuthProvider>
+    ) : (
+      <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
+        <App />
+      </SpacetimeDBProvider>
+    )}
+  </LegacyLogoutProvider>
+);
+
+// Use SpacetimeAuth when VITE_SPACETIMEAUTH_CLIENT_ID is set; otherwise use legacy auth
+const Root = isSpacetimeAuthConfigured() ? (
+  <SpacetimeAuthGate />
 ) : (
-  <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
-    <App />
-  </SpacetimeDBProvider>
+  LegacyAppWrapper
 );
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LanguageProvider>
-      {AppWrapper}
+      {Root}
     </LanguageProvider>
   </StrictMode>
 );
