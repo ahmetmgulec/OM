@@ -18,7 +18,8 @@
     "kickUser": "Kick User",
     "kickConfirm": "Are you sure you want to kick this user from the channel?",
     "ipAddress": "IP Address",
-    "ipNotSet": "No IP"
+    "ipNotSet": "No IP",
+    "goBack": "Go back"
   },
   "auth": {
     "welcome": "Welcome to OM",

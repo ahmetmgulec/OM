@@ -18,7 +18,8 @@
     "kickUser": "Kullanıcıyı At",
     "kickConfirm": "Bu kullanıcıyı kanaldan çıkarmak istediğinize emin misiniz?",
     "ipAddress": "IP Adresi",
-    "ipNotSet": "IP yok"
+    "ipNotSet": "IP yok",
+    "goBack": "Geri"
   },
   "auth": {
     "welcome": "OM'a Hoş Geldiniz",

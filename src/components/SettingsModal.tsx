@@ -8,6 +8,8 @@ interface SettingsModalProps {
   displayName: string;
   onSubmitName: (name: string) => void | Promise<void>;
   onLogout: () => void;
+  onOpenRoles?: () => void;
+  showRolesButton?: boolean;
 }
 
 export function SettingsModal({
@@ -16,6 +18,8 @@ export function SettingsModal({
   displayName,
   onSubmitName,
   onLogout,
+  onOpenRoles,
+  showRolesButton,
 }: SettingsModalProps) {
   const [name, setName] = useState(displayName);
   const { t } = useLanguage();
@@ -64,7 +68,21 @@ export function SettingsModal({
             </button>
           </div>
         </form>
-        <div className="form-actions" style={{ marginTop: '16px', borderTop: '1px solid #4f545c', paddingTop: '16px' }}>
+        {showRolesButton && onOpenRoles && (
+          <div className="form-actions" style={{ marginTop: '16px', borderTop: '1px solid #4f545c', paddingTop: '16px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenRoles();
+              }}
+              style={{ background: '#43b581', color: '#fff' }}
+            >
+              {t('common.roles')}
+            </button>
+          </div>
+        )}
+        <div className="form-actions" style={{ marginTop: showRolesButton && onOpenRoles ? '12px' : '16px', borderTop: '1px solid #4f545c', paddingTop: '16px' }}>
           <button
             type="button"
             onClick={() => {

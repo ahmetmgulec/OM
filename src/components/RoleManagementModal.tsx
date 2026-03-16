@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Identity } from 'spacetimedb';
+import { useLanguage } from '../contexts/LanguageContext';
 import './RoleManagementModal.css';
 
 interface Role {
@@ -19,6 +20,7 @@ interface User {
 interface RoleManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onGoBack?: () => void;
   channelId?: bigint | null;
   roles: Role[];
   roleMembers: Array<{ roleId: bigint; userId: Identity }>;
@@ -102,6 +104,7 @@ const PERMISSION_GROUPS = [
 export function RoleManagementModal({
   isOpen,
   onClose,
+  onGoBack,
   channelId,
   roles,
   roleMembers,
@@ -112,6 +115,7 @@ export function RoleManagementModal({
   onRemoveRole,
   onDeleteRole,
 }: RoleManagementModalProps) {
+  const { t } = useLanguage();
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleColor, setNewRoleColor] = useState('#5865f2');
@@ -304,6 +308,11 @@ export function RoleManagementModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content role-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
+          {onGoBack ? (
+            <button className="modal-go-back" onClick={onGoBack} title={t('common.goBack')}>
+              ← {t('common.goBack')}
+            </button>
+          ) : null}
           <h2>Rol Yönetimi</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>

@@ -1,3 +1,31 @@
+.role-modal .modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-modal .modal-header h2 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+}
+
+.modal-go-back {
+  background: none;
+  border: none;
+  color: #b9bbbe;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.modal-go-back:hover {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
 .role-modal {
   max-width: 800px;
   max-height: 90vh;

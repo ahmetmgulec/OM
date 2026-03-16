@@ -463,52 +463,7 @@ function App() {
                     {t('common.addUser')}
                   </button>
                 ) : null}
-                {checkPermission(currentUserPermissions, Permissions.MANAGE_ROLES) ? (
-                  <button
-                    className="role-management-btn"
-                    onClick={() => setShowRoleModal(true)}
-                    title={t('roles.roleManagement')}
-                    style={{
-                      background: '#43b581',
-                      border: 'none',
-                      borderRadius: '4px',
-                      color: '#fff',
-                      padding: '6px 12px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.background = '#3ca374'}
-                    onMouseOut={(e) => e.currentTarget.style.background = '#43b581'}
-                  >
-                    {t('common.roles')}
-                  </button>
-                ) : null}
               </>
-            ) : null}
-            {/* Show role management button globally if user has global MANAGE_ROLES permission and no channel is selected */}
-            {selectedChannelId == null && canManageRolesGlobally ? (
-              <button
-                className="role-management-btn"
-                onClick={() => setShowRoleModal(true)}
-                    title={`${t('roles.roleManagement')} (${t('roles.globalRoles')})`}
-                style={{
-                  background: '#43b581',
-                  border: 'none',
-                  borderRadius: '4px',
-                  color: '#fff',
-                  padding: '6px 12px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.background = '#3ca374'}
-                onMouseOut={(e) => e.currentTarget.style.background = '#43b581'}
-              >
-                {t('common.roles')}
-              </button>
             ) : null}
           </div>
         </div>
@@ -626,10 +581,22 @@ function App() {
         displayName={displayName}
         onSubmitName={handleSubmitName}
         onLogout={logout}
+        onOpenRoles={() => {
+          setShowSettingsModal(false);
+          setShowRoleModal(true);
+        }}
+        showRolesButton={
+          canManageRolesGlobally ||
+          (selectedChannelId != null && checkPermission(currentUserPermissions, Permissions.MANAGE_ROLES))
+        }
       />
       <RoleManagementModal
         isOpen={showRoleModal}
         onClose={() => setShowRoleModal(false)}
+        onGoBack={() => {
+          setShowRoleModal(false);
+          setShowSettingsModal(true);
+        }}
         channelId={selectedChannelId ?? null}
         roles={Array.from(roles, r => ({ id: r.id, channelId: r.channelId, name: r.name, color: r.color, permissions: r.permissions, position: r.position }))}
         roleMembers={Array.from(roleMembers, m => ({ roleId: m.roleId, userId: m.userId }))}
