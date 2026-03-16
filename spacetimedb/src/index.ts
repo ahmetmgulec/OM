@@ -994,10 +994,19 @@ export const login_email = spacetimedb.reducer(
           replacedAt: ctx.timestamp,
         });
       }
-      ctx.db.activeSession.insert({
-        sessionIdentity: ctx.sender,
-        connectedAt: ctx.timestamp,
-      });
+      // Upsert: clientConnected may have already added this session on connect
+      const existingSession = ctx.db.activeSession.sessionIdentity.find(ctx.sender);
+      if (existingSession) {
+        ctx.db.activeSession.sessionIdentity.update({
+          ...existingSession,
+          connectedAt: ctx.timestamp,
+        });
+      } else {
+        ctx.db.activeSession.insert({
+          sessionIdentity: ctx.sender,
+          connectedAt: ctx.timestamp,
+        });
+      }
     }
 
     console.info(`User ${ctx.sender} logged in with email ${normalizedEmail}`);
@@ -1300,10 +1309,19 @@ export const login_google = spacetimedb.reducer(
           replacedAt: ctx.timestamp,
         });
       }
-      ctx.db.activeSession.insert({
-        sessionIdentity: ctx.sender,
-        connectedAt: ctx.timestamp,
-      });
+      // clientConnected may have already added this session; upsert to avoid duplicate-key panic
+      const existingSession = ctx.db.activeSession.sessionIdentity.find(ctx.sender);
+      if (existingSession) {
+        ctx.db.activeSession.sessionIdentity.update({
+          ...existingSession,
+          connectedAt: ctx.timestamp,
+        });
+      } else {
+        ctx.db.activeSession.insert({
+          sessionIdentity: ctx.sender,
+          connectedAt: ctx.timestamp,
+        });
+      }
     }
 
     // Set account identity online (for isLinked case, already updated above)
