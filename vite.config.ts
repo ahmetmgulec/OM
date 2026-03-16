@@ -7,8 +7,8 @@ export default defineConfig({
   server: {
     headers: {
       'Cache-Control': 'no-store',
-      // Required for Google OAuth popup - allows postMessage from OAuth popup to parent
-      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      // Removed Cross-Origin-Opener-Policy - it was blocking Google OAuth popup postMessage
+      // If you need COOP for security, use: 'Cross-Origin-Opener-Policy': 'unsafe-none'
     },
   },
 });

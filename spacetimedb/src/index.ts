@@ -245,10 +245,9 @@ const replacedIdentity = table(
   }
 );
 
-// Links a session identity to an account identity for email login.
-// When ctx.sender !== credential.identity, we create this link so the account identity
-// (credential.identity) is preserved and never changes. The session (ctx.sender) is
-// a temporary proxy - we write to both so data persists under the canonical identity.
+// Links a session identity to an account identity for email/Google login.
+// When ctx.sender !== account identity, we create this link so the account identity
+// is preserved. Only the account has a user row - no duplicate user rows for sessions.
 const identityLink = table(
   {
     name: 'identityLink',
@@ -262,10 +261,24 @@ const identityLink = table(
   }
 );
 
+// Tracks which session identities are currently connected.
+// Used to know when to set account user offline (when last linked session disconnects).
+const activeSession = table(
+  {
+    name: 'activeSession',
+    public: false,
+    indexes: [],
+  },
+  {
+    sessionIdentity: t.identity().primaryKey(),
+    connectedAt: t.timestamp(),
+  }
+);
+
 const spacetimedb = schema({ 
   user, channel, thread, message, channelMember, emailCredential, googleAuth,
   voiceRoom, voiceParticipant, voiceSignaling, voiceRecordingChunk,
-  role, roleMember, replacedIdentity, identityLink
+  role, roleMember, replacedIdentity, identityLink, activeSession
 });
 export default spacetimedb;
 
@@ -873,27 +886,44 @@ export const login_email = spacetimedb.reducer(
       throw new SenderError('Invalid email or password');
     }
     
-    // Auth the current connection (ctx.sender) - client gets a new identity each time
-    // when connecting without token, so we must update ctx.sender's user, not credential.identity's
     const originalUser = ctx.db.user.identity.find(credential.identity);
-    let user = ctx.db.user.identity.find(ctx.sender);
-    if (!user) {
-      user = ctx.db.user.insert({
-        identity: ctx.sender,
-        name: originalUser?.name,
-        online: true,
-        avatar: originalUser?.avatar,
-        authMethod: 'email',
-        lastIpAddress: undefined,
-      });
+    const isLinked = !credential.identity.isEqual(ctx.sender);
+
+    // Only create user for ctx.sender when NOT linked - when linked, only account has user row (no duplicates)
+    if (!isLinked) {
+      let user = ctx.db.user.identity.find(ctx.sender);
+      if (!user) {
+        ctx.db.user.insert({
+          identity: ctx.sender,
+          name: originalUser?.name,
+          online: true,
+          avatar: originalUser?.avatar,
+          authMethod: 'email',
+          lastIpAddress: undefined,
+        });
+      } else {
+        ctx.db.user.identity.update({
+          ...user,
+          name: user.name ?? originalUser?.name,
+          online: true,
+          authMethod: 'email',
+          lastIpAddress: user.lastIpAddress,
+        });
+      }
     } else {
-      ctx.db.user.identity.update({
-        ...user,
-        name: user.name ?? originalUser?.name,
-        online: true,
-        authMethod: 'email',
-        lastIpAddress: user.lastIpAddress,
-      });
+      // Linked session: ensure account has user, update it. Do NOT create user for ctx.sender.
+      if (!originalUser) {
+        ctx.db.user.insert({
+          identity: credential.identity,
+          name: undefined,
+          online: true,
+          avatar: undefined,
+          authMethod: 'email',
+          lastIpAddress: undefined,
+        });
+      } else {
+        ctx.db.user.identity.update({ ...originalUser, online: true });
+      }
     }
 
     // Copy role memberships from original account (admin, channel roles, etc.)
@@ -933,11 +963,7 @@ export const login_email = spacetimedb.reducer(
       }
     }
 
-    // When session identity differs from account identity: link them so the account
-    // identity (credential.identity) is preserved and never changes. We do NOT
-    // update the credential or delete the account's memberships - the canonical
-    // identity stays credential.identity for all future logins.
-    if (!credential.identity.isEqual(ctx.sender)) {
+    if (isLinked) {
       // Link this session to the account identity
       const existingLink = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
       if (existingLink) {
@@ -968,10 +994,12 @@ export const login_email = spacetimedb.reducer(
           replacedAt: ctx.timestamp,
         });
       }
-      // Do NOT update credential.identity - it stays the canonical identity
-      // Do NOT delete credential.identity's memberships - data persists under account
+      ctx.db.activeSession.insert({
+        sessionIdentity: ctx.sender,
+        connectedAt: ctx.timestamp,
+      });
     }
-    
+
     console.info(`User ${ctx.sender} logged in with email ${normalizedEmail}`);
   }
 );
@@ -1159,27 +1187,50 @@ export const login_google = spacetimedb.reducer(
     }
 
     // Existing account: when session (ctx.sender) differs from account (googleAuth.identity),
-    // create user for session, copy memberships, and link identities (same as login_email)
+    // do NOT create user for session - only account has user row (no duplicates)
     const originalUser = ctx.db.user.identity.find(googleAuth.identity);
-    let user = ctx.db.user.identity.find(ctx.sender);
-    if (!user) {
-      user = ctx.db.user.insert({
-        identity: ctx.sender,
-        name: originalUser?.name ?? googleAuth.name ?? name?.trim() ?? undefined,
-        online: true,
-        avatar: originalUser?.avatar ?? googleAuth.avatar ?? avatar ?? undefined,
-        authMethod: 'google',
-        lastIpAddress: undefined,
-      });
+    const isLinked = !googleAuth.identity.isEqual(ctx.sender);
+
+    if (!isLinked) {
+      let user = ctx.db.user.identity.find(ctx.sender);
+      if (!user) {
+        ctx.db.user.insert({
+          identity: ctx.sender,
+          name: originalUser?.name ?? googleAuth.name ?? name?.trim() ?? undefined,
+          online: true,
+          avatar: originalUser?.avatar ?? googleAuth.avatar ?? avatar ?? undefined,
+          authMethod: 'google',
+          lastIpAddress: undefined,
+        });
+      } else {
+        ctx.db.user.identity.update({
+          ...user,
+          name: user.name ?? originalUser?.name ?? googleAuth.name ?? name?.trim(),
+          online: true,
+          avatar: user.avatar ?? originalUser?.avatar ?? googleAuth.avatar ?? avatar,
+          authMethod: 'google',
+          lastIpAddress: user.lastIpAddress,
+        });
+      }
     } else {
-      ctx.db.user.identity.update({
-        ...user,
-        name: user.name ?? originalUser?.name ?? googleAuth.name ?? name?.trim(),
-        online: true,
-        avatar: user.avatar ?? originalUser?.avatar ?? googleAuth.avatar ?? avatar,
-        authMethod: 'google',
-        lastIpAddress: user.lastIpAddress,
-      });
+      // Linked session: ensure account has user, update it. Do NOT create user for ctx.sender.
+      if (!originalUser) {
+        ctx.db.user.insert({
+          identity: googleAuth.identity,
+          name: googleAuth.name ?? name?.trim() ?? undefined,
+          online: true,
+          avatar: googleAuth.avatar ?? avatar ?? undefined,
+          authMethod: 'google',
+          lastIpAddress: undefined,
+        });
+      } else {
+        ctx.db.user.identity.update({
+          ...originalUser,
+          online: true,
+          name: originalUser.name ?? googleAuth.name ?? name?.trim(),
+          avatar: originalUser.avatar ?? googleAuth.avatar ?? avatar,
+        });
+      }
     }
 
     // Copy role memberships from account to session
@@ -1249,9 +1300,13 @@ export const login_google = spacetimedb.reducer(
           replacedAt: ctx.timestamp,
         });
       }
+      ctx.db.activeSession.insert({
+        sessionIdentity: ctx.sender,
+        connectedAt: ctx.timestamp,
+      });
     }
 
-    // Set account identity online
+    // Set account identity online (for isLinked case, already updated above)
     const accountUser = ctx.db.user.identity.find(googleAuth.identity);
     if (accountUser) {
       ctx.db.user.identity.update({ ...accountUser, online: true });
@@ -1782,30 +1837,37 @@ export const init = spacetimedb.init(ctx => {
 });
 
 export const onConnect = spacetimedb.clientConnected(ctx => {
-  // Try to get connection address from context
-  // SpacetimeDB provides ctx.address which is a unique identifier for the connection
-  // Note: This is not the actual IP address, but a connection identifier
-  // For actual IP, we would need to use a custom reducer that receives IP from client
   let connectionAddress: string | undefined = undefined;
-  
   // @ts-ignore - address may be available in context
   if (ctx.address) {
     // @ts-ignore
     connectionAddress = String(ctx.address);
   }
-  
-  // Check if user already exists
-  const user = ctx.db.user.identity.find(ctx.sender);
-  
-  if (user) {
-    // User exists - just update online status and IP
-    ctx.db.user.identity.update({ 
-      ...user, 
-      online: true,
-      lastIpAddress: connectionAddress || user.lastIpAddress, // Update connection address if available
+
+  // Track this session as connected (used to know when to set account offline)
+  const existingSession = ctx.db.activeSession.sessionIdentity.find(ctx.sender);
+  if (existingSession) {
+    ctx.db.activeSession.sessionIdentity.update({
+      ...existingSession,
+      connectedAt: ctx.timestamp,
     });
-    // If this is a linked session (email login), also set account identity online
-    const link = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
+  } else {
+    ctx.db.activeSession.insert({
+      sessionIdentity: ctx.sender,
+      connectedAt: ctx.timestamp,
+    });
+  }
+
+  const user = ctx.db.user.identity.find(ctx.sender);
+  const link = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
+
+  if (user) {
+    // User exists (non-linked session) - update online status
+    ctx.db.user.identity.update({
+      ...user,
+      online: true,
+      lastIpAddress: connectionAddress || user.lastIpAddress,
+    });
     if (link) {
       const accountUser = ctx.db.user.identity.find(link.accountIdentity);
       if (accountUser) {
@@ -1816,43 +1878,67 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
         });
       }
     }
+  } else if (link) {
+    // Linked session: no user row for ctx.sender - only update account user
+    const accountUser = ctx.db.user.identity.find(link.accountIdentity);
+    if (accountUser) {
+      ctx.db.user.identity.update({
+        ...accountUser,
+        online: true,
+        lastIpAddress: connectionAddress || accountUser.lastIpAddress,
+      });
+    }
   } else {
-    // Check if this identity has any auth credentials (email or Google)
+    // Check if identity has auth credentials (reconnect before login)
     const emailCreds = [...ctx.db.emailCredential.iter()].find(c => c.identity.isEqual(ctx.sender));
     const googleAuths = [...ctx.db.googleAuth.iter()].find(a => a.identity.isEqual(ctx.sender));
-    
     if (emailCreds || googleAuths) {
-      // Identity has auth credentials but no user record - create user record
-      // This can happen if user was created before user table existed, or data was cleared
       const authMethod = emailCreds ? 'email' : 'google';
-      
       ctx.db.user.insert({
         identity: ctx.sender,
-        name: undefined, // Will be set during login/signup
+        name: undefined,
         online: true,
         avatar: undefined,
         authMethod: authMethod,
         lastIpAddress: connectionAddress,
       });
-      
       console.info(`User ${ctx.sender} reconnected with existing auth credentials`);
     }
-    // If no auth credentials exist, don't create anonymous user
-    // User will be created during signup/login process
-    // This prevents duplicate users when page refreshes with a new Identity
   }
 });
 
 export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
+  // Remove from activeSession first (before checking other sessions)
+  const activeRow = ctx.db.activeSession.sessionIdentity.find(ctx.sender);
+  if (activeRow) {
+    ctx.db.activeSession.sessionIdentity.delete(ctx.sender);
+  }
+
   const user = ctx.db.user.identity.find(ctx.sender);
+  const link = ctx.db.identityLink.sessionIdentity.find(ctx.sender);
+
   if (user) {
     ctx.db.user.identity.update({ ...user, online: false });
+  } else if (link) {
+    // Linked session: set account offline only if no other linked session is connected
+    const otherSessionsForAccount = [...ctx.db.identityLink.iter()].filter(
+      l => l.accountIdentity.isEqual(link.accountIdentity) && !l.sessionIdentity.isEqual(ctx.sender)
+    );
+    const anyStillConnected = otherSessionsForAccount.some(s =>
+      ctx.db.activeSession.sessionIdentity.find(s.sessionIdentity)
+    );
+    if (!anyStillConnected) {
+      const accountUser = ctx.db.user.identity.find(link.accountIdentity);
+      if (accountUser) {
+        ctx.db.user.identity.update({ ...accountUser, online: false });
+      }
+    }
   } else {
     console.warn(
       `Disconnect event for unknown user with identity ${ctx.sender}`
     );
   }
-  
+
   // Clean up voice room participation
   const participants = [...ctx.db.voiceParticipant.iter()].filter(p => p.userId.isEqual(ctx.sender));
   participants.forEach(participant => {

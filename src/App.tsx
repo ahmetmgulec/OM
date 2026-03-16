@@ -120,7 +120,8 @@ function App() {
     return map;
   }, [voiceRooms, voiceParticipants, users]);
 
-  // Create users map for quick lookup
+  // Create users map for quick lookup.
+  // Include resolved identities (session -> account) so linked sessions show account name.
   const usersMap = useMemo(() => {
     const map = new Map<string, { name?: string; identity: Identity }>();
     users.forEach(user => {
@@ -129,8 +130,17 @@ function App() {
         identity: user.identity,
       });
     });
+    replacedIdentities.forEach(r => {
+      const accountUser = users.find(u => u.identity.isEqual(r.newIdentity));
+      if (accountUser) {
+        map.set(r.oldIdentity.toHexString(), {
+          name: accountUser.name,
+          identity: r.oldIdentity,
+        });
+      }
+    });
     return map;
-  }, [users]);
+  }, [users, replacedIdentities]);
 
   // Permission flags (must match backend)
   const Permissions = {
@@ -301,7 +311,9 @@ function App() {
     );
   }
 
-  const currentUser = users.find(u => u.identity.isEqual(identity));
+  // When linked (session), resolve to account identity for user lookup (session has no user row)
+  const resolvedIdentity = replacedIdentities.find(r => r.oldIdentity.isEqual(identity))?.newIdentity ?? identity;
+  const currentUser = users.find(u => u.identity.isEqual(resolvedIdentity));
   
   // Show auth screen if user is not authenticated
   if (!currentUser || !currentUser.authMethod) {

@@ -10,6 +10,12 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const ActiveSession = __t.object("ActiveSession", {
+  sessionIdentity: __t.identity(),
+  connectedAt: __t.timestamp(),
+});
+export type ActiveSession = __Infer<typeof ActiveSession>;
+
 export const Channel = __t.object("Channel", {
   id: __t.u64(),
   name: __t.string(),
