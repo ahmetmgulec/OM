@@ -8,7 +8,7 @@ const MAX_DATA_URL_LENGTH = 100_000;
 
 export function imageToDataUrl(file: File): Promise<string> {
   let objectUrl: string | null = null;
-  return new Promise((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const img = document.createElement('img');
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
