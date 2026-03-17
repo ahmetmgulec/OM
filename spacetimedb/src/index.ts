@@ -16,6 +16,7 @@ const user = table(
     avatar: t.string().optional(),
     authMethod: t.string().optional(), // 'email', 'google', or undefined for anonymous
     lastIpAddress: t.string().optional(), // Last known IP address (only visible to admins)
+    lastSeenAt: t.timestamp().optional(), // When user went offline (for "last login" display)
   }
 );
 
@@ -332,6 +333,7 @@ export const set_name = spacetimedb.reducer(
       avatar: user.avatar,
       authMethod: user.authMethod,
       lastIpAddress: user.lastIpAddress,
+      lastSeenAt: user.lastSeenAt,
     });
   }
 );
@@ -379,6 +381,25 @@ export const set_avatar = spacetimedb.reducer(
       avatar: value,
     });
     console.info(`User ${ctx.sender} updated avatar`);
+  }
+);
+
+// Client reports its public IP after connecting (SpacetimeDB does not expose client IP server-side)
+export const report_client_ip = spacetimedb.reducer(
+  { ip: t.string() },
+  (ctx, { ip }) => {
+    const addr = ip.trim();
+    if (!addr || addr.length > 45) {
+      throw new SenderError('Invalid IP address');
+    }
+    const user = ctx.db.user.identity.find(ctx.sender);
+    if (!user) {
+      throw new SenderError('User not found');
+    }
+    ctx.db.user.identity.update({
+      ...user,
+      lastIpAddress: addr,
+    });
   }
 );
 
@@ -1247,7 +1268,7 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
 export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
   const user = ctx.db.user.identity.find(ctx.sender);
   if (user) {
-    ctx.db.user.identity.update({ ...user, online: false });
+    ctx.db.user.identity.update({ ...user, online: false, lastSeenAt: ctx.timestamp });
   } else {
     console.warn(
       `Disconnect event for unknown user with identity ${ctx.sender}`

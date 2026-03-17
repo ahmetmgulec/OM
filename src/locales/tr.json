@@ -151,7 +151,10 @@
     "selectUserToAdd": "Eklenecek kullanıcıyı seçin",
     "noUsersAvailable": "Eklenecek kullanıcı yok",
     "alreadyMember": "Bu kullanıcı zaten kanalın üyesi",
-    "kickFailed": "Kullanıcı atılamadı"
+    "kickFailed": "Kullanıcı atılamadı",
+    "detailsTitle": "Kullanıcı Bilgileri",
+    "lastLogin": "Son giriş",
+    "authMethod": "Giriş yöntemi"
   },
   "messages": {
     "empty": "Henüz mesaj yok. Konuşmayı başlatın!"

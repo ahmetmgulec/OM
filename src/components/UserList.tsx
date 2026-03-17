@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Identity } from 'spacetimedb';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Avatar } from './Avatar';
+import { UserDetailsModal } from './UserDetailsModal';
 import './UserList.css';
 
 interface User {
@@ -10,6 +11,8 @@ interface User {
   online: boolean;
   lastIpAddress?: string;
   avatar?: string;
+  lastSeenAt?: { microsSinceUnixEpoch: bigint };
+  authMethod?: string;
 }
 
 interface ChannelMember {
@@ -36,6 +39,7 @@ export function UserList({
   onKickUser,
   currentUserGlobalPermissions = 0n,
 }: UserListProps) {
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const { t } = useLanguage();
   const onlineUsers = users.filter(u => u.online);
   const offlineUsers = users.filter(u => !u.online);
@@ -99,33 +103,23 @@ export function UserList({
             <div
               key={user.identity.toHexString()}
               className={`user-item ${isCurrentUser ? 'current-user' : ''}`}
+              onClick={() => setSelectedUser(user)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setSelectedUser(user)}
             >
             <span className="user-status online"></span>
             <Avatar avatarUrl={user.avatar} name={user.name} size={24} className="user-list-avatar" />
             <span className="user-name">
               {getUserDisplayName(user)}
-              {isAdmin ? (
-                <span 
-                  style={{ 
-                    fontSize: '10px', 
-                    color: '#72767d', 
-                    marginLeft: '8px',
-                    fontFamily: 'monospace'
-                  }}
-                  title={
-                    user.lastIpAddress
-                      ? `${t('common.ipAddress')}: ${user.lastIpAddress}`
-                      : `${t('common.ipAddress')}: ${t('common.ipNotSet')}`
-                  }
-                >
-                  {user.lastIpAddress ? `(${user.lastIpAddress})` : `(${t('common.ipNotSet')})`}
-                </span>
-              ) : null}
             </span>
             {showKickButton ? (
                 <button
                   className="kick-user-btn"
-                  onClick={(e) => handleKick(user.identity, e)}
+                  onClick={(e) => {
+                    handleKick(user.identity, e);
+                    e.stopPropagation();
+                  }}
                   title={t('common.kickUser')}
                   style={{
                     marginLeft: 'auto',
@@ -163,33 +157,23 @@ export function UserList({
               <div
                 key={user.identity.toHexString()}
                 className={`user-item ${isCurrentUser ? 'current-user' : ''}`}
+                onClick={() => setSelectedUser(user)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && setSelectedUser(user)}
               >
             <span className="user-status offline"></span>
             <Avatar avatarUrl={user.avatar} name={user.name} size={24} className="user-list-avatar" />
             <span className="user-name">
               {getUserDisplayName(user)}
-              {isAdmin ? (
-                <span 
-                  style={{ 
-                    fontSize: '10px', 
-                    color: '#72767d', 
-                    marginLeft: '8px',
-                    fontFamily: 'monospace'
-                  }}
-                  title={
-                    user.lastIpAddress
-                      ? `${t('common.ipAddress')}: ${user.lastIpAddress}`
-                      : `${t('common.ipAddress')}: ${t('common.ipNotSet')}`
-                  }
-                >
-                  {user.lastIpAddress ? `(${user.lastIpAddress})` : `(${t('common.ipNotSet')})`}
-                </span>
-              ) : null}
             </span>
             {showKickButton ? (
                   <button
                     className="kick-user-btn"
-                    onClick={(e) => handleKick(user.identity, e)}
+                    onClick={(e) => {
+                      handleKick(user.identity, e);
+                      e.stopPropagation();
+                    }}
                     title={t('common.kickUser')}
                     style={{
                       marginLeft: 'auto',
@@ -214,6 +198,24 @@ export function UserList({
           })}
         </div>
       ) : null}
+
+      <UserDetailsModal
+        isOpen={!!selectedUser}
+        onClose={() => setSelectedUser(null)}
+        user={selectedUser ? {
+          identity: selectedUser.identity,
+          name: selectedUser.name,
+          online: selectedUser.online,
+          avatar: selectedUser.avatar,
+          lastIpAddress: selectedUser.lastIpAddress,
+          lastSeenAt: selectedUser.lastSeenAt,
+          authMethod: selectedUser.authMethod,
+        } : null}
+        isAdmin={isAdmin}
+        onKick={onKickUser}
+        canKick={!!(canKick && selectedChannelId && selectedUser && isChannelMember(selectedUser.identity) && currentUserId && !selectedUser.identity.isEqual(currentUserId))}
+        isCurrentUser={!!(currentUserId && selectedUser?.identity.isEqual(currentUserId))}
+      />
     </div>
   );
 }

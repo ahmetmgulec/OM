@@ -76,6 +76,7 @@ export const User = __t.object("User", {
   avatar: __t.option(__t.string()),
   authMethod: __t.option(__t.string()),
   lastIpAddress: __t.option(__t.string()),
+  lastSeenAt: __t.option(__t.timestamp()),
 });
 export type User = __Infer<typeof User>;
 

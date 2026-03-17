@@ -19,6 +19,16 @@ let schemaMismatchShown = false;
 const onConnect = (conn: DbConnection, identity: Identity) => {
   console.log('Connected to SpacetimeDB with identity:', identity.toHexString());
   conn.subscriptionBuilder().subscribeToAllTables();
+
+  // Report client IP for admin visibility (SpacetimeDB does not expose peer IP server-side)
+  fetch('https://api.ipify.org?format=json')
+    .then((r) => r.json())
+    .then((data: { ip?: string }) => {
+      if (data?.ip && typeof data.ip === 'string') {
+        conn.reducers.reportClientIp({ ip: data.ip }).catch(() => {});
+      }
+    })
+    .catch(() => {});
 };
 
 const onConnectError = (_ctx: ErrorContext, err: Error) => {

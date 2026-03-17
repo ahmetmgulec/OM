@@ -151,7 +151,10 @@
     "selectUserToAdd": "Select user to add",
     "noUsersAvailable": "No users available to add",
     "alreadyMember": "This user is already a member of the channel",
-    "kickFailed": "Failed to kick user"
+    "kickFailed": "Failed to kick user",
+    "detailsTitle": "User details",
+    "lastLogin": "Last seen",
+    "authMethod": "Signed in with"
   },
   "messages": {
     "empty": "No messages yet. Start the conversation!"

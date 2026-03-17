@@ -47,6 +47,7 @@ import KickUserReducer from "./kick_user_reducer";
 import LeaveChannelReducer from "./leave_channel_reducer";
 import LeaveVoiceReducer from "./leave_voice_reducer";
 import RemoveRoleReducer from "./remove_role_reducer";
+import ReportClientIpReducer from "./report_client_ip_reducer";
 import SendMessageReducer from "./send_message_reducer";
 import SendVoiceSignalReducer from "./send_voice_signal_reducer";
 import SetAvatarReducer from "./set_avatar_reducer";
@@ -224,6 +225,7 @@ const reducersSchema = __reducers(
   __reducerSchema("leave_channel", LeaveChannelReducer),
   __reducerSchema("leave_voice", LeaveVoiceReducer),
   __reducerSchema("remove_role", RemoveRoleReducer),
+  __reducerSchema("report_client_ip", ReportClientIpReducer),
   __reducerSchema("send_message", SendMessageReducer),
   __reducerSchema("send_voice_signal", SendVoiceSignalReducer),
   __reducerSchema("set_avatar", SetAvatarReducer),

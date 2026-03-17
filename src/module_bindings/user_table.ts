@@ -17,4 +17,5 @@ export default __t.row({
   avatar: __t.option(__t.string()),
   authMethod: __t.option(__t.string()).name("auth_method"),
   lastIpAddress: __t.option(__t.string()).name("last_ip_address"),
+  lastSeenAt: __t.option(__t.timestamp()).name("last_seen_at"),
 });
