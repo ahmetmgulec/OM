@@ -22,15 +22,16 @@ interface SidebarProps {
   onCreateChannel: () => void;
   voiceControls?: React.ReactNode;
   voiceChannelParticipants?: Map<bigint, VoiceParticipant[]>;
+  unreadCountByChannel?: Map<string, number>;
 }
 
-export function Sidebar({ channels, selectedChannelId, onSelectChannel, onSelectVoiceChannel, onCreateChannel, voiceControls, voiceChannelParticipants }: SidebarProps) {
+export function Sidebar({ channels, selectedChannelId, onSelectChannel, onSelectVoiceChannel, onCreateChannel, voiceControls, voiceChannelParticipants, unreadCountByChannel }: SidebarProps) {
   const { t } = useLanguage();
 
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h2>{t('common.selectChannel')}</h2>
+        <h2>{t('sidebar.channels')}</h2>
         <button
           className="create-channel-btn"
           onClick={onCreateChannel}
@@ -57,16 +58,20 @@ export function Sidebar({ channels, selectedChannelId, onSelectChannel, onSelect
                   {textChannels.length > 0 && (
                     <div className="sidebar-section">
                       <div className="sidebar-section-header">{t('sidebar.textChannels')}</div>
-                      {textChannels.map((channel) => (
-                        <div
-                          key={`text-${channel.id.toString()}`}
-                          className={`channel-item ${selectedChannelId === channel.id ? 'active' : ''}`}
-                          onClick={() => onSelectChannel(channel.id)}
-                        >
-                          <span className="channel-icon">#</span>
-                          <span className="channel-name">{channel.name}</span>
-                        </div>
-                      ))}
+                      {textChannels.map((channel) => {
+                        const unread = unreadCountByChannel?.get(channel.id.toString()) ?? 0;
+                        return (
+                          <div
+                            key={`text-${channel.id.toString()}`}
+                            className={`channel-item ${selectedChannelId === channel.id ? 'active' : ''}`}
+                            onClick={() => onSelectChannel(channel.id)}
+                          >
+                            <span className="channel-icon">#</span>
+                            <span className="channel-name">{channel.name}</span>
+                            {unread > 0 && <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   {voiceChannels.length > 0 && (
@@ -82,6 +87,9 @@ export function Sidebar({ channels, selectedChannelId, onSelectChannel, onSelect
                             >
                               <span className="channel-icon">🔊</span>
                               <span className="channel-name">{channel.name}</span>
+                              {(unreadCountByChannel?.get(channel.id.toString()) ?? 0) > 0 && (
+                                <span className="channel-unread-badge">{(unreadCountByChannel!.get(channel.id.toString()) ?? 0) > 99 ? '99+' : unreadCountByChannel!.get(channel.id.toString())}</span>
+                              )}
                             </div>
                             {participants.length > 0 && (
                               <div className="channel-participants">
@@ -89,7 +97,7 @@ export function Sidebar({ channels, selectedChannelId, onSelectChannel, onSelect
                                   <div key={p.identity.toHexString()} className="channel-participant">
                                     <span className="participant-status" />
                                     <span className="participant-name">
-                                      {p.name || p.identity.toHexString().substring(0, 8)}
+                                      {p.name?.trim() || t('common.anonymous')}
                                     </span>
                                   </div>
                                 ))}

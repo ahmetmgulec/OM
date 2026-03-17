@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import './CreateChannelModal.css';
 
 export type ChannelType = 'text' | 'voice';
@@ -15,6 +16,8 @@ export function CreateChannelModal({ isOpen, onClose, onCreate }: CreateChannelM
   const [description, setDescription] = useState('');
   const [channelType, setChannelType] = useState<ChannelType>('text');
   const { t } = useLanguage();
+
+  useEscapeKey(onClose, isOpen);
 
   if (!isOpen) return null;
 

@@ -12,6 +12,8 @@ export const oidcConfig = {
   client_id: SPACETIMEAUTH_CLIENT_ID,
   redirect_uri: `${window.location.origin}/callback`,
   post_logout_redirect_uri: window.location.origin,
+  // Required for silent token renewal - add to SpacetimeAuth client redirect URIs
+  silent_redirect_uri: `${window.location.origin}/callback`,
   scope: 'openid profile email',
   response_type: 'code',
   automaticSilentRenew: true,

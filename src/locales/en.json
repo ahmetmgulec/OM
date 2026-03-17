@@ -1,5 +1,6 @@
 {
   "sidebar": {
+    "channels": "Channels",
     "textChannels": "Text Channels",
     "voiceChannels": "Voice Channels"
   },
@@ -19,7 +20,10 @@
     "kickConfirm": "Are you sure you want to kick this user from the channel?",
     "ipAddress": "IP Address",
     "ipNotSet": "No IP",
-    "goBack": "Go back"
+    "goBack": "Go back",
+    "back": "Back",
+    "anonymous": "Anonymous",
+    "scrollToBottom": "Scroll to bottom"
   },
   "auth": {
     "welcome": "Welcome to OM",
@@ -42,9 +46,41 @@
     "passwordsDoNotMatch": "Passwords do not match",
     "loginFailed": "Login failed. Please check your email and password and try again.",
     "invalidCredentials": "Invalid email or password.",
+    "loading": "Loading...",
+    "redirecting": "Redirecting to sign in...",
+    "sessionExpired": "Session expired",
+    "sessionExpiredHint": "Please sign in again to continue.",
+    "refreshingSession": "Refreshing session...",
+    "signInAgain": "Sign in again",
+    "error": "Authentication error",
     "connectionFailed": "Connection failed",
     "connectionFailedHint": "Could not connect to the server. Please check your internet connection and try again.",
-    "retry": "Retry"
+    "setupFailed": "Account setup timed out",
+    "setupFailedHint": "Your account could not be set up. Try signing in again.",
+    "retry": "Retry",
+    "createUsername": "Choose a username",
+    "createUsernameHint": "Your username will be shown to other users.",
+    "createUsernameButton": "Continue",
+    "usernamePlaceholder": "Username",
+    "creating": "Creating..."
+  },
+  "profile": {
+    "title": "Profile",
+    "avatarUrl": "Profile picture",
+    "avatarUrlHint": "Paste an image URL (e.g. from imgur.com)",
+    "avatarUrlTooLong": "URL must be 500 characters or less",
+    "namePlaceholder": "Your display name",
+    "saving": "Saving...",
+    "useGooglePhoto": "Use Google photo",
+    "uploadImage": "Upload image",
+    "uploadImageType": "Please select an image file (PNG, JPEG, etc.)",
+    "uploadImageTooBig": "Image must be under 5MB",
+    "avatarTooLarge": "Image too large. Try a smaller image.",
+    "uploading": "Uploading...",
+    "uploadFailed": "Upload failed. Try again or paste a URL.",
+    "profilePicture": "Profile picture",
+    "removePhoto": "Remove photo",
+    "editPhoto": "Edit photo"
   },
   "settings": {
     "title": "Settings",
@@ -124,21 +160,6 @@
     "placeholder": "Type a message...",
     "send": "Send"
   },
-  "voiceRecordings": {
-    "title": "Voice Recordings",
-    "collapse": "Collapse recordings",
-    "expand": "Expand recordings",
-    "empty": "No recordings yet",
-    "listen": "Listen",
-    "play": "Play",
-    "playing": "Playing",
-    "duration": "~{minutes} min",
-    "dateFormat": "MMM d, HH:mm",
-    "errorEmpty": "Recording is empty or unreadable",
-    "errorPlayback": "Failed to play recording",
-    "errorStart": "Failed to start playback",
-    "download": "Download"
-  },
   "voice": {
     "join": "Join",
     "leave": "Leave",
@@ -146,6 +167,18 @@
     "unmute": "Unmute",
     "deafen": "Deafen",
     "undeafen": "Undeafen",
+    "participants": "people",
+    "leaveTitle": "Leave voice call",
+    "muteTitle": "Mute microphone",
+    "unmuteTitle": "Unmute microphone",
+    "deafenTitle": "Deafen",
+    "undeafenTitle": "Undeafen",
+    "connection": {
+      "strong": "Strong",
+      "connecting": "Connecting…",
+      "weak": "Weak",
+      "disconnected": "Disconnected"
+    },
     "micPermissionDenied": "Microphone access denied. Please allow microphone access to use voice chat.",
     "mustBeMember": "You must be a channel member to join voice.",
     "joinFailed": "Failed to join voice chat. Please try again."

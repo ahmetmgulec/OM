@@ -1,6 +1,7 @@
 import React from 'react';
 import { Identity } from 'spacetimedb';
 import { useLanguage } from '../contexts/LanguageContext';
+import { Avatar } from './Avatar';
 import './UserList.css';
 
 interface User {
@@ -8,6 +9,7 @@ interface User {
   name?: string;
   online: boolean;
   lastIpAddress?: string;
+  avatar?: string;
 }
 
 interface ChannelMember {
@@ -39,7 +41,7 @@ export function UserList({
   const offlineUsers = users.filter(u => !u.online);
 
   const getUserDisplayName = (user: User) => {
-    return user.name || user.identity.toHexString().substring(0, 8);
+    return user.name?.trim() || t('common.anonymous');
   };
 
   // Check if user has KICK_USER permission
@@ -99,6 +101,7 @@ export function UserList({
               className={`user-item ${isCurrentUser ? 'current-user' : ''}`}
             >
             <span className="user-status online"></span>
+            <Avatar avatarUrl={user.avatar} name={user.name} size={24} className="user-list-avatar" />
             <span className="user-name">
               {getUserDisplayName(user)}
               {isAdmin ? (
@@ -123,7 +126,7 @@ export function UserList({
                 <button
                   className="kick-user-btn"
                   onClick={(e) => handleKick(user.identity, e)}
-                  title="Kullanıcıyı At"
+                  title={t('common.kickUser')}
                   style={{
                     marginLeft: 'auto',
                     background: 'transparent',
@@ -139,7 +142,7 @@ export function UserList({
                   onMouseOver={(e) => e.currentTarget.style.background = 'rgba(237, 66, 69, 0.1)'}
                   onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  At
+                  {t('common.kick')}
                 </button>
               ) : null}
             </div>
@@ -162,6 +165,7 @@ export function UserList({
                 className={`user-item ${isCurrentUser ? 'current-user' : ''}`}
               >
             <span className="user-status offline"></span>
+            <Avatar avatarUrl={user.avatar} name={user.name} size={24} className="user-list-avatar" />
             <span className="user-name">
               {getUserDisplayName(user)}
               {isAdmin ? (
@@ -186,7 +190,7 @@ export function UserList({
                   <button
                     className="kick-user-btn"
                     onClick={(e) => handleKick(user.identity, e)}
-                    title="Kullanıcıyı At"
+                    title={t('common.kickUser')}
                     style={{
                       marginLeft: 'auto',
                       background: 'transparent',
@@ -202,7 +206,7 @@ export function UserList({
                     onMouseOver={(e) => e.currentTarget.style.background = 'rgba(237, 66, 69, 0.1)'}
                     onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    At
+                    {t('common.kick')}
                   </button>
                 ) : null}
               </div>

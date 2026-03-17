@@ -47,9 +47,9 @@ import KickUserReducer from "./kick_user_reducer";
 import LeaveChannelReducer from "./leave_channel_reducer";
 import LeaveVoiceReducer from "./leave_voice_reducer";
 import RemoveRoleReducer from "./remove_role_reducer";
-import SaveVoiceChunkReducer from "./save_voice_chunk_reducer";
 import SendMessageReducer from "./send_message_reducer";
 import SendVoiceSignalReducer from "./send_voice_signal_reducer";
+import SetAvatarReducer from "./set_avatar_reducer";
 import SetNameReducer from "./set_name_reducer";
 import ToggleVoiceDeafenReducer from "./toggle_voice_deafen_reducer";
 import ToggleVoiceMuteReducer from "./toggle_voice_mute_reducer";
@@ -65,7 +65,6 @@ import RoleMemberRow from "./role_member_table";
 import ThreadRow from "./thread_table";
 import UserRow from "./user_table";
 import VoiceParticipantRow from "./voice_participant_table";
-import VoiceRecordingChunkRow from "./voice_recording_chunk_table";
 import VoiceRoomRow from "./voice_room_table";
 import VoiceSignalingRow from "./voice_signaling_table";
 
@@ -171,25 +170,15 @@ const tablesSchema = __schema({
       { accessor: 'voice_participant_by_room', name: 'voiceParticipant_room_id_idx_btree', algorithm: 'btree', columns: [
         'roomId',
       ] },
+      { accessor: 'userId', name: 'voiceParticipant_user_id_idx_btree', algorithm: 'btree', columns: [
+        'userId',
+      ] },
     ],
     constraints: [
       { name: 'voiceParticipant_id_key', constraint: 'unique', columns: ['id'] },
+      { name: 'voiceParticipant_user_id_key', constraint: 'unique', columns: ['userId'] },
     ],
   }, VoiceParticipantRow),
-  voiceRecordingChunk: __table({
-    name: 'voiceRecordingChunk',
-    indexes: [
-      { accessor: 'id', name: 'voiceRecordingChunk_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'voice_recording_by_room', name: 'voiceRecordingChunk_room_id_idx_btree', algorithm: 'btree', columns: [
-        'roomId',
-      ] },
-    ],
-    constraints: [
-      { name: 'voiceRecordingChunk_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, VoiceRecordingChunkRow),
   voiceRoom: __table({
     name: 'voiceRoom',
     indexes: [
@@ -235,9 +224,9 @@ const reducersSchema = __reducers(
   __reducerSchema("leave_channel", LeaveChannelReducer),
   __reducerSchema("leave_voice", LeaveVoiceReducer),
   __reducerSchema("remove_role", RemoveRoleReducer),
-  __reducerSchema("save_voice_chunk", SaveVoiceChunkReducer),
   __reducerSchema("send_message", SendMessageReducer),
   __reducerSchema("send_voice_signal", SendVoiceSignalReducer),
+  __reducerSchema("set_avatar", SetAvatarReducer),
   __reducerSchema("set_name", SetNameReducer),
   __reducerSchema("toggle_voice_deafen", ToggleVoiceDeafenReducer),
   __reducerSchema("toggle_voice_mute", ToggleVoiceMuteReducer),

@@ -116,7 +116,7 @@ const voiceParticipant = table(
   {
     id: t.u64().primaryKey().autoInc(),
     roomId: t.u64(),
-    userId: t.identity(),
+    userId: t.identity().unique(), // One user in only one voice room
     muted: t.bool(),
     deafened: t.bool(),
     joinedAt: t.timestamp(),
@@ -138,26 +138,6 @@ const voiceSignaling = table(
     toUserId: t.identity(),
     signalType: t.string(), // 'offer', 'answer', 'ice-candidate'
     signalData: t.string(), // JSON stringified signal data
-    createdAt: t.timestamp(),
-  }
-);
-
-// Voice recording chunks - auto-saved when voice room is active
-const voiceRecordingChunk = table(
-  {
-    name: 'voiceRecordingChunk',
-    public: true,
-    indexes: [
-      { accessor: 'voice_recording_by_room', name: 'voice_recording_by_room', algorithm: 'btree', columns: ['roomId'] },
-    ],
-  },
-  {
-    id: t.u64().primaryKey().autoInc(),
-    roomId: t.u64(),
-    channelId: t.u64(),
-    chunkIndex: t.u64(),
-    dataBase64: t.string(), // Base64-encoded audio chunk (~32KB max per chunk)
-    recordedBy: t.identity(),
     createdAt: t.timestamp(),
   }
 );
@@ -201,7 +181,7 @@ const roleMember = table(
 
 const spacetimedb = schema({ 
   user, channel, thread, message, channelMember,
-  voiceRoom, voiceParticipant, voiceSignaling, voiceRecordingChunk,
+  voiceRoom, voiceParticipant, voiceSignaling,
   role, roleMember,
 });
 export default spacetimedb;
@@ -353,6 +333,52 @@ export const set_name = spacetimedb.reducer(
       authMethod: user.authMethod,
       lastIpAddress: user.lastIpAddress,
     });
+  }
+);
+
+function validateAvatar(value: string | undefined) {
+  if (!value || value.trim().length === 0) return;
+  const trimmed = value.trim();
+  // Data URL (base64 stored in DB): data:image/jpeg;base64,/9j/4AAQ...
+  if (trimmed.startsWith('data:image/')) {
+    const [header, data] = trimmed.split(',');
+    if (!header || !data || !header.includes('base64')) {
+      throw new SenderError('Invalid avatar data');
+    }
+    if (trimmed.length > 150_000) {
+      throw new SenderError('Avatar image too large (max ~100KB)');
+    }
+    return;
+  }
+  // External URL
+  if (trimmed.length > 500) {
+    throw new SenderError('Avatar URL must be 500 characters or less');
+  }
+  try {
+    const u = new URL(trimmed);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      throw new SenderError('Avatar must be http or https URL');
+    }
+  } catch (e) {
+    if (e instanceof SenderError) throw e;
+    throw new SenderError('Avatar must be a valid URL');
+  }
+}
+
+export const set_avatar = spacetimedb.reducer(
+  { avatar: t.string().optional() },
+  (ctx, { avatar }) => {
+    const user = ctx.db.user.identity.find(ctx.sender);
+    if (!user) {
+      throw new SenderError('Cannot set avatar for unknown user');
+    }
+    const value = avatar?.trim() || undefined;
+    if (value) validateAvatar(value);
+    ctx.db.user.identity.update({
+      ...user,
+      avatar: value,
+    });
+    console.info(`User ${ctx.sender} updated avatar`);
   }
 );
 
@@ -669,14 +695,32 @@ export const join_voice = spacetimedb.reducer(
       });
     }
     
-    // Check if user is already in the voice room
-    const participants = [...ctx.db.voiceParticipant.iter()].filter(p => p.roomId === room.id);
-    const existingParticipant = participants.find(p => p.userId.isEqual(ctx.sender));
-    
-    if (existingParticipant) {
-      throw new SenderError('You are already in the voice room');
+    // If already in this room, no-op (idempotent)
+    const allParticipations = [...ctx.db.voiceParticipant.iter()].filter(p => p.userId.isEqual(ctx.sender));
+    const inThisRoom = allParticipations.find(p => p.roomId === room.id);
+    if (inThisRoom) {
+      return;
     }
-    
+
+    // Leave ALL other voice rooms (user must only be in one at a time)
+    const inOtherRooms = allParticipations.filter(p => p.roomId !== room.id);
+    for (const part of inOtherRooms) {
+      const otherRoom = ctx.db.voiceRoom.id.find(part.roomId);
+      if (otherRoom) {
+        ctx.db.voiceParticipant.delete(part);
+        const signals = [...ctx.db.voiceSignaling.iter()].filter(
+          s => s.roomId === otherRoom.id &&
+            (s.fromUserId.isEqual(ctx.sender) || s.toUserId.isEqual(ctx.sender))
+        );
+        signals.forEach(signal => ctx.db.voiceSignaling.delete(signal));
+        const remaining = [...ctx.db.voiceParticipant.iter()].filter(p => p.roomId === otherRoom.id);
+        if (remaining.length === 0) {
+          ctx.db.voiceRoom.delete(otherRoom);
+        }
+        console.info(`User ${ctx.sender} auto-left voice room for channel ${otherRoom.channelId}`);
+      }
+    }
+
     // Add user to voice room
     ctx.db.voiceParticipant.insert({
       id: 0n,
@@ -821,33 +865,6 @@ export const send_voice_signal = spacetimedb.reducer(
     });
     
     console.info(`User ${ctx.sender} sent ${signalType} signal to ${toUserId} in voice room`);
-  }
-);
-
-export const save_voice_chunk = spacetimedb.reducer(
-  { roomId: t.u64(), channelId: t.u64(), chunkIndex: t.u64(), dataBase64: t.string() },
-  (ctx, { roomId, channelId, chunkIndex, dataBase64 }) => {
-    if (!dataBase64 || dataBase64.length > 50000) {
-      throw new SenderError('Invalid chunk data (max 50KB base64)');
-    }
-    const rooms = [...ctx.db.voiceRoom.iter()].filter(r => r.id === roomId);
-    if (rooms.length === 0) {
-      throw new SenderError('Voice room not found');
-    }
-    const participants = [...ctx.db.voiceParticipant.iter()].filter(p => p.roomId === roomId);
-    const senderParticipant = participants.find(p => p.userId.isEqual(ctx.sender));
-    if (!senderParticipant) {
-      throw new SenderError('You are not in the voice room');
-    }
-    ctx.db.voiceRecordingChunk.insert({
-      id: 0n,
-      roomId,
-      channelId,
-      chunkIndex,
-      dataBase64,
-      recordedBy: ctx.sender,
-      createdAt: ctx.timestamp,
-    });
   }
 );
 
@@ -1167,14 +1184,18 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
   }
 
   const user = ctx.db.user.identity.find(ctx.sender);
+  const jwt = ctx.senderAuth?.jwt;
+  const isSpacetimeAuth = jwt && jwt.issuer === 'https://auth.spacetimedb.com/oidc';
 
   if (user) {
     ctx.db.user.identity.update({
       ...user,
       online: true,
       lastIpAddress: connectionAddress || user.lastIpAddress,
+      // Set authMethod for legacy users connecting with SpacetimeAuth
+      ...(isSpacetimeAuth && { authMethod: 'spacetimeauth' }),
     });
-  } else {
+  } else if (isSpacetimeAuth) {
     // SpacetimeAuth: create User from JWT claims when connecting with OIDC token
     const jwt = ctx.senderAuth?.jwt;
     if (jwt && jwt.issuer === 'https://auth.spacetimedb.com/oidc') {

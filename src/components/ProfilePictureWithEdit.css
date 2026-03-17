@@ -1,0 +1,47 @@
+.profile-picture-with-edit {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.profile-picture-with-edit .profile-picture-avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.profile-picture-edit-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.profile-picture-with-edit:hover .profile-picture-edit-overlay {
+  opacity: 1;
+}
+
+.profile-picture-edit-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.profile-picture-edit-label {
+  font-weight: 500;
+}
+
+.profile-picture-edit-overlay:hover {
+  background: rgba(0, 0, 0, 0.75);
+}

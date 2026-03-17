@@ -1,0 +1,62 @@
+.session-expired-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #2f3136 0%, #36393f 50%, #202225 100%);
+  padding: 24px;
+}
+
+.session-expired-card {
+  background: #36393f;
+  border-radius: 12px;
+  padding: 40px 48px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid #4f545c;
+}
+
+.session-expired-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+  line-height: 1;
+}
+
+.session-expired-title {
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  letter-spacing: -0.02em;
+}
+
+.session-expired-message {
+  color: #b9bbbe;
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 28px 0;
+}
+
+.session-expired-btn {
+  display: inline-block;
+  padding: 12px 28px;
+  background: #5865f2;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-family: inherit;
+}
+
+.session-expired-btn:hover {
+  background: #4752c4;
+}
+
+.session-expired-btn:active {
+  background: #3c45a5;
+}

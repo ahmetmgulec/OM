@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Identity } from 'spacetimedb';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import './RoleManagementModal.css';
 
 interface Role {
@@ -124,6 +125,8 @@ export function RoleManagementModal({
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEscapeKey(onClose, isOpen);
 
   const channelRoles = useMemo(() => {
     if (!channelId) return [];
@@ -370,7 +373,7 @@ export function RoleManagementModal({
                                 key={user.identity.toHexString()}
                                 value={user.identity.toHexString()}
                               >
-                                {user.name || user.identity.toHexString().substring(0, 8)}
+                                {user.name?.trim() || t('common.anonymous')}
                               </option>
                             ))}
                           </select>
@@ -401,7 +404,7 @@ export function RoleManagementModal({
                           <div className="role-members">
                             {roleUsers.map((user) => (
                               <div key={user.identity.toHexString()} className="role-member">
-                                <span>{user.name || user.identity.toHexString().substring(0, 8)}</span>
+                                <span>{user.name?.trim() || t('common.anonymous')}</span>
                                 <button
                                   className="btn-remove"
                                   onClick={() => onRemoveRole(role.id, user.identity)}
@@ -473,7 +476,7 @@ export function RoleManagementModal({
                                 key={user.identity.toHexString()}
                                 value={user.identity.toHexString()}
                               >
-                                {user.name || user.identity.toHexString().substring(0, 8)}
+                                {user.name?.trim() || t('common.anonymous')}
                               </option>
                             ))}
                           </select>
@@ -504,7 +507,7 @@ export function RoleManagementModal({
                           <div className="role-members">
                             {roleUsers.map((user) => (
                               <div key={user.identity.toHexString()} className="role-member">
-                                <span>{user.name || user.identity.toHexString().substring(0, 8)}</span>
+                                <span>{user.name?.trim() || t('common.anonymous')}</span>
                                 <button
                                   className="btn-remove"
                                   onClick={() => onRemoveRole(role.id, user.identity)}

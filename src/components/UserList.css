@@ -54,6 +54,11 @@
   background-color: #747f8d;
 }
 
+.user-list-avatar {
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
 .user-name {
   font-size: 14px;
   color: #dcddde;

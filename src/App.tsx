@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useAuth } from 'react-oidc-context';
 import './App.css';
 import { tables } from './module_bindings';
 import { typedReducers } from './reducers';
@@ -12,13 +13,17 @@ import { CreateChannelModal } from './components/CreateChannelModal';
 import { AddUserToChannelModal } from './components/AddUserToChannelModal';
 import { RoleManagementModal } from './components/RoleManagementModal';
 import { SettingsModal } from './components/SettingsModal';
+import { CreateUsernameGate } from './components/CreateUsernameGate';
 import { useLogout } from './contexts/LogoutContext';
 import { VoiceControls } from './components/VoiceControls';
-import { VoiceRecordings } from './components/VoiceRecordings';
+import { Avatar } from './components/Avatar';
+import { ProfilePictureWithEdit } from './components/ProfilePictureWithEdit';
+import { EditAvatarModal } from './components/EditAvatarModal';
 import { LanguageSelector } from './components/LanguageSelector';
 import { NotificationBar } from './components/NotificationBar';
 import { useVoiceChat } from './hooks/useVoiceChat';
 import { useLanguage } from './contexts/LanguageContext';
+import { useAuthActivity } from './contexts/AuthActivityContext';
 
 function App() {
   const [selectedChannelId, setSelectedChannelId] = useState<bigint | null>(null);
@@ -27,20 +32,32 @@ function App() {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showEditAvatarModal, setShowEditAvatarModal] = useState(false);
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
+  const [accountSetupTimedOut, setAccountSetupTimedOut] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type?: 'error' | 'success' | 'info' } | null>(null);
 
   const { identity, isActive: connected } = useSpacetimeDB();
+  const { user: authUser } = useAuth();
+  const { t } = useLanguage();
+  const { markActivity } = useAuthActivity();
+  const googlePictureUrl = authUser?.profile?.picture ?? null;
+
+  // Mark activity on window focus (user returned to tab) and on interactions
+  useEffect(() => {
+    const onFocus = () => markActivity();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [markActivity]);
 
   useEffect(() => {
     if (connected) {
       setConnectionTimedOut(false);
       return;
     }
-    const t = setTimeout(() => setConnectionTimedOut(true), 15000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setConnectionTimedOut(true), 15000);
+    return () => clearTimeout(timer);
   }, [connected]);
-  const { t } = useLanguage();
   
   // Voice chat hook - must be called after identity is defined
   const voiceChat = useVoiceChat({
@@ -51,6 +68,7 @@ function App() {
   });
   const logout = useLogout();
   const setName = useReducer(typedReducers.setName);
+  const setAvatar = useReducer(typedReducers.setAvatar);
   const sendMessage = useReducer(typedReducers.sendMessage);
   const createChannel = useReducer(typedReducers.createChannel);
   const joinChannel = useReducer(typedReducers.joinChannel);
@@ -80,6 +98,21 @@ function App() {
     console.log('Messages:', messages.length);
     console.log('Users:', users.length);
   }, [channels, channelMembers, messages, users]);
+
+  // Timeout when waiting for User row (backend creates it on connect)
+  useEffect(() => {
+    if (!connected || !identity) {
+      setAccountSetupTimedOut(false);
+      return;
+    }
+    const currentUser = users.find(u => u.identity.isEqual(identity));
+    if (currentUser?.authMethod) {
+      setAccountSetupTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setAccountSetupTimedOut(true), 10000);
+    return () => clearTimeout(timer);
+  }, [connected, identity, users]);
 
   const userChannels = useMemo(() => {
     if (!identity) return [];
@@ -113,15 +146,40 @@ function App() {
   }, [voiceRooms, voiceParticipants, users]);
 
   const usersMap = useMemo(() => {
-    const map = new Map<string, { name?: string; identity: Identity }>();
+    const map = new Map<string, { name?: string; identity: Identity; avatar?: string }>();
     users.forEach(user => {
       map.set(user.identity.toHexString(), {
         name: user.name,
         identity: user.identity,
+        avatar: user.avatar,
       });
     });
     return map;
   }, [users]);
+
+  // Unread badges: track last read message id per channel
+  const [lastReadByChannel, setLastReadByChannel] = useState<Map<string, bigint>>(() => new Map());
+  const markChannelRead = useCallback((channelId: bigint) => {
+    const msgs = messages.filter(m => m.channelId === channelId);
+    const maxId = msgs.reduce((max, m) => (m.id > max ? m.id : max), 0n);
+    setLastReadByChannel(prev => new Map(prev).set(channelId.toString(), maxId));
+  }, [messages]);
+  const unreadCountByChannel = useMemo(() => {
+    const counts = new Map<string, number>();
+    userChannels.forEach(ch => {
+      const chId = ch.id.toString();
+      if (selectedChannelId === ch.id) return; // viewing = no badge
+      const channelMsgs = messages.filter(m => m.channelId === ch.id && !m.threadId);
+      const lastRead = lastReadByChannel.get(chId) ?? 0n;
+      const unread = channelMsgs.filter(m => m.id > lastRead).length;
+      if (unread > 0) counts.set(chId, unread);
+    });
+    return counts;
+  }, [messages, selectedChannelId, userChannels, lastReadByChannel]);
+
+  useEffect(() => {
+    if (selectedChannelId) markChannelRead(selectedChannelId);
+  }, [selectedChannelId, markChannelRead]);
 
   // Permission flags (must match backend)
   const Permissions = {
@@ -299,16 +357,55 @@ function App() {
     return (
       <div className="app-container">
         <div className="loading-screen">
-          <h1>{t('auth.loading') ?? 'Setting up your account...'}</h1>
+          {accountSetupTimedOut ? (
+            <>
+              <h1>{t('auth.setupFailed') ?? 'Account setup timed out'}</h1>
+              <p style={{ marginTop: '12px', color: '#b9bbbe', fontSize: '14px' }}>
+                {t('auth.setupFailedHint') ?? 'The server may not have received your session. Try signing in again.'}
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                style={{
+                  marginTop: '24px',
+                  padding: '12px 24px',
+                  background: '#5865f2',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                {t('auth.signInAgain') ?? 'Sign in again'}
+              </button>
+            </>
+          ) : (
+            <h1>{t('auth.loading') ?? 'Setting up your account...'}</h1>
+          )}
         </div>
       </div>
     );
   }
 
-  const displayName = currentUser?.name || identity.toHexString().substring(0, 8);
+  // Require username before using the app
+  const hasUsername = Boolean(currentUser.name?.trim());
+  if (!hasUsername) {
+    return (
+      <CreateUsernameGate
+        onSubmit={async (name) => {
+          await setName({ name });
+        }}
+        error={notification?.type === 'error' ? notification.message : undefined}
+      />
+    );
+  }
+
+  const displayName = currentUser.name;
 
   const handleSendMessage = (text: string) => {
     if (!selectedChannelId) return;
+    markActivity();
     sendMessage({ text, channelId: selectedChannelId })
       .catch(err => {
         console.error('Error sending message:', err);
@@ -347,6 +444,7 @@ function App() {
   };
 
   const handleSelectChannel = (channelId: bigint) => {
+    markActivity();
     setPendingVoiceJoin(null); // text channel - no auto-join
     const isMember = channelMembers.some(
       m => m.channelId === channelId && m.userId.isEqual(identity)
@@ -364,6 +462,7 @@ function App() {
   };
 
   const handleSelectVoiceChannel = async (channelId: bigint) => {
+    markActivity();
     const isMember = channelMembers.some(
       m => m.channelId === channelId && m.userId.isEqual(identity)
     );
@@ -376,11 +475,15 @@ function App() {
         return;
       }
     }
+    // If in a different voice channel: leave server first (guarantees single room), then join
+    if (voiceChat.isConnected && selectedChannelId !== channelId) {
+      await voiceChat.leaveVoice(); // Server leave - prevents double-join race
+    }
     setSelectedChannelId(channelId);
     setPendingVoiceJoin(channelId);
   };
 
-  const handleSubmitName = async (name: string) => {
+  const handleSubmitProfile = async (name: string, avatarUrl: string) => {
     const trimmedName = name.trim();
     if (!trimmedName) {
       setNotification({ message: t('errors.displayNameEmpty'), type: 'error' });
@@ -390,23 +493,59 @@ function App() {
       setNotification({ message: t('errors.displayNameTooLong'), type: 'error' });
       return;
     }
-    
+    // Data URLs from upload can be long; external URLs max 500 chars
+    if (avatarUrl) {
+      if (avatarUrl.startsWith('data:image/')) {
+        if (avatarUrl.length > 150_000) {
+          setNotification({ message: t('profile.avatarTooLarge'), type: 'error' });
+          return;
+        }
+      } else if (avatarUrl.length > 500) {
+        setNotification({ message: t('profile.avatarUrlTooLong'), type: 'error' });
+        return;
+      }
+    }
+
     const userRecord = users.find(u => u.identity.isEqual(identity));
     if (!userRecord) {
-      console.warn('User record not found, waiting for user to be created...');
       setNotification({ message: t('errors.userNotReady'), type: 'error' });
       return;
     }
-    
+
     try {
       await setName({ name: trimmedName });
+      await setAvatar(avatarUrl ? { avatar: avatarUrl } : {});
       setShowSettingsModal(false);
-    } catch (err: any) {
-      console.error('Error setting name:', err);
+    } catch (err: unknown) {
+      console.error('Error updating profile:', err);
       setNotification({
-        message: t('errors.setNameFailed') + ' ' + (err?.message || String(err)),
+        message: t('errors.setNameFailed') + ' ' + ((err as Error)?.message || ''),
         type: 'error',
       });
+      throw err;
+    }
+  };
+
+  const handleSaveAvatar = async (avatarUrl: string) => {
+    if (avatarUrl) {
+      if (avatarUrl.startsWith('data:image/') && avatarUrl.length > 150_000) {
+        setNotification({ message: t('profile.avatarTooLarge'), type: 'error' });
+        return;
+      }
+      if (!avatarUrl.startsWith('data:image/') && avatarUrl.length > 500) {
+        setNotification({ message: t('profile.avatarUrlTooLong'), type: 'error' });
+        return;
+      }
+    }
+    try {
+      await setAvatar(avatarUrl ? { avatar: avatarUrl } : {});
+    } catch (err: unknown) {
+      console.error('Error updating avatar:', err);
+      setNotification({
+        message: t('errors.setNameFailed') + ' ' + ((err as Error)?.message || ''),
+        type: 'error',
+      });
+      throw err;
     }
   };
 
@@ -419,12 +558,13 @@ function App() {
         onSelectVoiceChannel={handleSelectVoiceChannel}
         onCreateChannel={() => setShowCreateChannelModal(true)}
         voiceChannelParticipants={voiceChannelParticipants}
+        unreadCountByChannel={unreadCountByChannel}
         voiceControls={
           <VoiceControls
             isConnected={voiceChat.isConnected}
             isMuted={voiceChat.isMuted}
             isDeafened={voiceChat.isDeafened}
-            participantsCount={voiceChat.participants.length}
+            connectionStatus={voiceChat.connectionStatus}
             onLeave={voiceChat.leaveVoice}
             onToggleMute={voiceChat.toggleMute}
             onToggleDeafen={voiceChat.toggleDeafen}
@@ -468,13 +608,6 @@ function App() {
         <div className="messages-container">
           {selectedChannelId != null ? (
             <>
-              <VoiceRecordings
-                channelId={selectedChannelId}
-                canListen={
-                  checkPermission(currentUserPermissions, Permissions.ADMIN) ||
-                  checkPermission(currentUserGlobalPermissions, Permissions.ADMIN)
-                }
-              />
               <MessageList
                 messages={channelMessages as Message[]}
                 users={usersMap}
@@ -528,12 +661,10 @@ function App() {
       <aside className="right-sidebar">
         <div className="right-sidebar-profile">
           <LanguageSelector />
-          <span className="right-sidebar-display-name">{displayName}</span>
           <button
             className="settings-btn"
             onClick={() => setShowSettingsModal(true)}
             title={t('settings.title')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', padding: '4px' }}
           >
             ⚙️
           </button>
@@ -565,7 +696,7 @@ function App() {
           onAdd={async (userId) => {
             await addUserToChannel({ channelId: selectedChannelId, userId });
           }}
-          users={Array.from(displayedUsers, u => ({ identity: u.identity, name: u.name, online: u.online }))}
+          users={Array.from(displayedUsers, u => ({ identity: u.identity, name: u.name, online: u.online, avatar: u.avatar }))}
           currentUserId={identity}
           channelMembers={Array.from(channelMembers, m => ({ userId: m.userId, channelId: m.channelId }))}
           channelId={selectedChannelId}
@@ -575,8 +706,10 @@ function App() {
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
-        displayName={displayName}
-        onSubmitName={handleSubmitName}
+        displayName={displayName ?? ''}
+        avatarUrl={currentUser?.avatar}
+        onSubmitProfile={handleSubmitProfile}
+        onEditAvatar={() => setShowEditAvatarModal(true)}
         onLogout={() => logout()}
         onOpenRoles={() => {
           setShowSettingsModal(false);
@@ -586,6 +719,14 @@ function App() {
           canManageRolesGlobally ||
           (selectedChannelId != null && checkPermission(currentUserPermissions, Permissions.MANAGE_ROLES))
         }
+      />
+      <EditAvatarModal
+        isOpen={showEditAvatarModal}
+        onClose={() => setShowEditAvatarModal(false)}
+        avatarUrl={currentUser?.avatar}
+        displayName={displayName ?? ''}
+        googlePictureUrl={googlePictureUrl}
+        onSave={handleSaveAvatar}
       />
       <RoleManagementModal
         isOpen={showRoleModal}

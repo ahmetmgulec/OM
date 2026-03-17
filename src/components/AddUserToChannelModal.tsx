@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Identity } from 'spacetimedb';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import './AddUserToChannelModal.css';
 
 interface User {
@@ -27,6 +29,7 @@ export function AddUserToChannelModal({
   channelMembers,
   channelId,
 }: AddUserToChannelModalProps) {
+  const { t } = useLanguage();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -72,6 +75,8 @@ export function AddUserToChannelModal({
     }
   };
 
+  useEscapeKey(onClose, isOpen);
+
   if (!isOpen) return null;
 
   return (
@@ -102,7 +107,7 @@ export function AddUserToChannelModal({
                 <option value="">-- Kullanıcı seçin --</option>
                 {availableUsers.map((user) => (
                   <option key={user.identity.toHexString()} value={user.identity.toHexString()}>
-                    {user.name || user.identity.toHexString().substring(0, 8)}
+                    {user.name?.trim() || t('common.anonymous')}
                     {user.online ? ' 🟢' : ' ⚫'}
                   </option>
                 ))}

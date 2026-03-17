@@ -1,5 +1,6 @@
 {
   "sidebar": {
+    "channels": "Kanallar",
     "textChannels": "Metin Kanalları",
     "voiceChannels": "Ses Kanalları"
   },
@@ -19,7 +20,10 @@
     "kickConfirm": "Bu kullanıcıyı kanaldan çıkarmak istediğinize emin misiniz?",
     "ipAddress": "IP Adresi",
     "ipNotSet": "IP yok",
-    "goBack": "Geri"
+    "goBack": "Geri",
+    "back": "Geri",
+    "anonymous": "Anonim",
+    "scrollToBottom": "Aşağı kaydır"
   },
   "auth": {
     "welcome": "OM'a Hoş Geldiniz",
@@ -42,9 +46,41 @@
     "passwordsDoNotMatch": "Şifreler eşleşmiyor",
     "loginFailed": "Giriş başarısız. E-posta ve şifrenizi kontrol edip tekrar deneyin.",
     "invalidCredentials": "Geçersiz e-posta veya şifre.",
+    "loading": "Yükleniyor...",
+    "redirecting": "Girişe yönlendiriliyor...",
+    "sessionExpired": "Oturum sona erdi",
+    "sessionExpiredHint": "Devam etmek için lütfen tekrar giriş yapın.",
+    "refreshingSession": "Oturum yenileniyor...",
+    "signInAgain": "Tekrar giriş yap",
+    "error": "Kimlik doğrulama hatası",
     "connectionFailed": "Bağlantı kurulamadı",
     "connectionFailedHint": "Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.",
-    "retry": "Tekrar Dene"
+    "setupFailed": "Hesap kurulumu zaman aşımına uğradı",
+    "setupFailedHint": "Hesabınız kurulamadı. Tekrar giriş yapmayı deneyin.",
+    "retry": "Tekrar Dene",
+    "createUsername": "Bir kullanıcı adı seçin",
+    "createUsernameHint": "Kullanıcı adınız diğer kullanıcılara gösterilecektir.",
+    "createUsernameButton": "Devam",
+    "usernamePlaceholder": "Kullanıcı adı",
+    "creating": "Oluşturuluyor..."
+  },
+  "profile": {
+    "title": "Profil",
+    "avatarUrl": "Profil fotoğrafı",
+    "avatarUrlHint": "Bir resim URL'si yapıştırın (ör. imgur.com'dan)",
+    "avatarUrlTooLong": "URL en fazla 500 karakter olabilir",
+    "namePlaceholder": "Görünen adınız",
+    "saving": "Kaydediliyor...",
+    "useGooglePhoto": "Google fotoğrafını kullan",
+    "uploadImage": "Resim yükle",
+    "uploading": "Yükleniyor...",
+    "uploadFailed": "Yükleme başarısız. Tekrar deneyin veya URL yapıştırın.",
+    "uploadImageType": "Lütfen bir resim dosyası seçin (PNG, JPEG vb.)",
+    "uploadImageTooBig": "Resim 5MB'dan küçük olmalıdır",
+    "avatarTooLarge": "Profil fotoğrafı çok büyük. Daha küçük bir resim deneyin.",
+    "profilePicture": "Profil fotoğrafı",
+    "removePhoto": "Fotoğrafı kaldır",
+    "editPhoto": "Fotoğrafı düzenle"
   },
   "settings": {
     "title": "Ayarlar",
@@ -124,21 +160,6 @@
     "placeholder": "Bir mesaj yazın...",
     "send": "Gönder"
   },
-  "voiceRecordings": {
-    "title": "Ses Kayıtları",
-    "collapse": "Kayıtları daralt",
-    "expand": "Kayıtları genişlet",
-    "empty": "Henüz kayıt yok",
-    "listen": "Dinle",
-    "play": "Oynat",
-    "playing": "Oynatılıyor",
-    "duration": "~{minutes} dk",
-    "dateFormat": "d MMM, HH:mm",
-    "errorEmpty": "Kayıt boş veya okunamıyor",
-    "errorPlayback": "Kayıt oynatılamadı",
-    "errorStart": "Oynatma başlatılamadı",
-    "download": "İndir"
-  },
   "voice": {
     "join": "Katıl",
     "leave": "Ayrıl",
@@ -146,6 +167,18 @@
     "unmute": "Susturmayı Kaldır",
     "deafen": "Sağırlaştır",
     "undeafen": "Sağırlaştırmayı Kaldır",
+    "participants": "kişi",
+    "leaveTitle": "Sesli konuşmadan ayrıl",
+    "muteTitle": "Mikrofonu sustur",
+    "unmuteTitle": "Mikrofonu aç",
+    "deafenTitle": "Sağırlaştır",
+    "undeafenTitle": "Sağırlaştırmayı kaldır",
+    "connection": {
+      "strong": "Güçlü",
+      "connecting": "Bağlanıyor…",
+      "weak": "Zayıf",
+      "disconnected": "Bağlantı yok"
+    },
     "micPermissionDenied": "Mikrofon erişimi reddedildi. Sesli sohbet için mikrofon izni verin.",
     "mustBeMember": "Sesli sohbete katılmak için kanal üyesi olmalısınız.",
     "joinFailed": "Sesli sohbete katılınamadı. Lütfen tekrar deneyin."

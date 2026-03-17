@@ -89,17 +89,6 @@ export const VoiceParticipant = __t.object("VoiceParticipant", {
 });
 export type VoiceParticipant = __Infer<typeof VoiceParticipant>;
 
-export const VoiceRecordingChunk = __t.object("VoiceRecordingChunk", {
-  id: __t.u64(),
-  roomId: __t.u64(),
-  channelId: __t.u64(),
-  chunkIndex: __t.u64(),
-  dataBase64: __t.string(),
-  recordedBy: __t.identity(),
-  createdAt: __t.timestamp(),
-});
-export type VoiceRecordingChunk = __Infer<typeof VoiceRecordingChunk>;
-
 export const VoiceRoom = __t.object("VoiceRoom", {
   id: __t.u64(),
   channelId: __t.u64(),

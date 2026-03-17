@@ -21,11 +21,60 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
 }
 
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+
 .modal-content h2 {
-  margin: 0 0 20px 0;
+  margin: 0;
   color: #fff;
   font-size: 24px;
   font-weight: 700;
+  flex: 1;
+}
+
+.modal-close-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #b9bbbe;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.modal-close-btn:hover,
+.modal-close:hover {
+  background-color: #4f545c;
+  color: #fff;
+}
+
+.modal-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #b9bbbe;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .form-group {
@@ -141,4 +190,159 @@
 .form-actions button[type="submit"]:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.form-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8e9297;
+}
+
+.modal-error {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: rgba(237, 66, 69, 0.15);
+  color: #ed4245;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.settings-modal-content .settings-avatar-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.settings-modal-content .modal-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #4f545c;
+}
+
+.settings-modal-content .modal-section .form-actions {
+  margin-top: 0;
+}
+
+.settings-modal-content .btn-roles {
+  background-color: #43b581;
+  color: #fff;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.settings-modal-content .btn-roles:hover {
+  background-color: #3ca374;
+}
+
+.settings-modal-content .btn-logout {
+  background-color: #ed4245;
+  color: #fff;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.settings-modal-content .btn-logout:hover {
+  background-color: #c0392b;
+}
+
+.settings-modal-content .modal-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #4f545c;
+}
+
+.settings-modal-content .modal-section button {
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.settings-modal-content .modal-section .btn-roles {
+  background: #43b581;
+  color: #fff;
+}
+
+.settings-modal-content .modal-section .btn-roles:hover {
+  background: #3ca374;
+}
+
+.settings-modal-content .modal-section .btn-logout {
+  background: #ed4245;
+  color: #fff;
+}
+
+.settings-modal-content .modal-section .btn-logout:hover {
+  background: #c73a3d;
+}
+
+.settings-modal-content .modal-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #4f545c;
+}
+
+.settings-modal-content .form-actions-single {
+  margin-top: 16px;
+}
+
+.settings-modal-content .btn-roles {
+  background-color: #43b581;
+  color: #fff;
+  width: 100%;
+}
+
+.settings-modal-content .btn-roles:hover {
+  background-color: #3ca374;
+}
+
+.settings-modal-content .btn-logout {
+  background-color: #ed4245;
+  color: #fff;
+  width: 100%;
+}
+
+.settings-modal-content .btn-logout:hover {
+  background-color: #d73a3d;
+}
+
+.settings-modal-content .modal-header {
+  margin-bottom: 16px;
+}
+
+.settings-modal-content .form-actions.form-actions-secondary {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #4f545c;
+}
+
+.settings-modal-content .form-actions button.btn-roles {
+  background-color: #43b581;
+  color: #fff;
+}
+
+.settings-modal-content .form-actions button.btn-roles:hover {
+  background-color: #3ca374;
+}
+
+.settings-modal-content .form-actions button.btn-logout {
+  background-color: #ed4245;
+  color: #fff;
+}
+
+.settings-modal-content .form-actions button.btn-logout:hover {
+  background-color: #d73a3c;
 }

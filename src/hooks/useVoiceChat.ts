@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Identity } from 'spacetimedb';
 
 function voiceLog(...args: unknown[]) {
@@ -29,7 +29,6 @@ function applyHighQualityAudio(pc: RTCPeerConnection) {
 import { useTable, useReducer } from 'spacetimedb/react';
 import { tables } from '../module_bindings';
 import { typedReducers } from '../reducers';
-import { useLanguage } from '../contexts/LanguageContext';
 
 interface UseVoiceChatOptions {
   channelId: bigint | null;
@@ -37,8 +36,6 @@ interface UseVoiceChatOptions {
   enabled: boolean;
   onError?: (message: string) => void;
 }
-
-const CHUNK_MAX_SIZE = 40000; // Base64 chars, ~30KB raw audio per chunk for DB
 
 /** Creates a silent audio track for replaceTrack when muting. Keeps AudioContext alive. */
 function createSilentAudioTrack(ctxRef: { current: AudioContext | null }, trackRef: { current: MediaStreamTrack | null }) {
@@ -61,40 +58,46 @@ function createSilentAudioTrack(ctxRef: { current: AudioContext | null }, trackR
   }
 }
 
+export type VoiceConnectionStatus = 'strong' | 'connecting' | 'weak' | 'disconnected';
+
+function aggregateConnectionStatus(pcs: Map<string, RTCPeerConnection>): VoiceConnectionStatus {
+  if (pcs.size === 0) return 'strong'; // Solo in room, no P2P
+  const states = [...pcs.values()].map((pc) => pc.iceConnectionState);
+  if (states.some((s) => s === 'failed' || s === 'closed')) return 'disconnected';
+  if (states.some((s) => s === 'disconnected')) return 'weak';
+  if (states.some((s) => s === 'checking' || s === 'new')) return 'connecting';
+  return 'strong';
+}
+
 export function useVoiceChat({ channelId, currentUserId, enabled, onError }: UseVoiceChatOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
-  const { t } = useLanguage();
-  
+  const [connectionStatus, setConnectionStatus] = useState<VoiceConnectionStatus>('strong');
+
+  const updateConnectionStatus = useCallback(() => {
+    setConnectionStatus(aggregateConnectionStatus(peerConnectionsRef.current));
+  }, []);
+
   const localStreamRef = useRef<MediaStream | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunkIndexRef = useRef(0);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localAudioRef = useRef<HTMLAudioElement | null>(null);
   const remoteAudiosRef = useRef<Map<string, HTMLAudioElement>>(new Map());
-  const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map()); // For recording mix
   const processedSignalsRef = useRef<Set<bigint>>(new Set());
   const sentOffersRef = useRef<Set<string>>(new Set());
   const pendingIceCandidatesRef = useRef<Map<string, object[]>>(new Map());
-  const recordingGainRef = useRef<GainNode | null>(null);
-  const recordingCtxRef = useRef<AudioContext | null>(null);
   const silentCtxRef = useRef<AudioContext | null>(null);
   const silentTrackRef = useRef<MediaStreamTrack | null>(null);
-  const dataIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pendingUploadsRef = useRef<Set<Promise<void>>>(new Set());
   
   const [voiceRooms] = useTable(tables.voiceRoom);
   const [voiceParticipants] = useTable(tables.voiceParticipant);
   const [voiceSignaling] = useTable(tables.voiceSignaling);
-  const lastRecordedRoomRef = useRef<bigint | null>(null);
   
   const joinVoice = useReducer(typedReducers.joinVoice);
   const leaveVoice = useReducer(typedReducers.leaveVoice);
   const toggleMute = useReducer(typedReducers.toggleVoiceMute);
   const toggleDeafen = useReducer(typedReducers.toggleVoiceDeafen);
   const sendSignal = useReducer(typedReducers.sendVoiceSignal);
-  const saveVoiceChunk = useReducer(typedReducers.saveVoiceChunk);
   
   // Get current room and participants
   const currentRoom = enabled && channelId ? voiceRooms.find(r => r.channelId === channelId) : null;
@@ -171,46 +174,34 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     }
   }, [channelId, enabled, joinVoice]);
   
+  // Local-only cleanup for channel switch. No server call - join_voice auto-leaves old room.
+  const prepareForChannelSwitch = useCallback(() => {
+    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    localStreamRef.current = null;
+    peerConnectionsRef.current.forEach(pc => pc.close());
+    peerConnectionsRef.current.clear();
+    remoteAudiosRef.current.forEach(audio => audio.remove());
+    remoteAudiosRef.current.clear();
+    silentCtxRef.current?.close();
+    silentCtxRef.current = null;
+    silentTrackRef.current = null;
+    setIsConnected(false);
+  }, []);
+
   // Handle leaving voice room
   const handleLeaveVoice = useCallback(async () => {
     if (!channelId) return;
-    
-    try {
-      // Stop auto-recording first and wait for ALL chunk uploads (reducer requires we're still in room)
-      if (mediaRecorderRef.current?.state === 'recording') {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current = null;
-        await new Promise((r) => setTimeout(r, 800)); // Let final ondataavailable fire and add to pending
-        const pending = [...pendingUploadsRef.current];
-        if (pending.length > 0) {
-          await Promise.race([
-            Promise.all(pending),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('Upload timeout')), 10000)),
-          ]).catch((err) => console.warn('Chunk upload wait:', err));
-        }
-      }
 
-      // Stop local stream
+    try {
       localStreamRef.current?.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
-      
-      // Close all peer connections
       peerConnectionsRef.current.forEach(pc => pc.close());
       peerConnectionsRef.current.clear();
-      
-      // Remove remote audio elements
       remoteAudiosRef.current.forEach(audio => audio.remove());
       remoteAudiosRef.current.clear();
-      
-      // Clean up recording and silent audio contexts
-      recordingGainRef.current = null;
-      recordingCtxRef.current?.close();
-      recordingCtxRef.current = null;
       silentCtxRef.current?.close();
       silentCtxRef.current = null;
       silentTrackRef.current = null;
-      
-      // Leave voice room on server
       await leaveVoice({ channelId });
       setIsConnected(false);
     } catch (err: any) {
@@ -218,7 +209,7 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     }
   }, [channelId, leaveVoice]);
   
-  // Handle mute toggle - use GainNode for recording + replaceTrack for peers (track stays enabled to avoid MediaRecorder corruption)
+  // Handle mute toggle - replaceTrack for peers (silent when muted, real when unmuted)
   const handleToggleMute = useCallback(async () => {
     if (!channelId || !isInVoiceRoom) return;
     
@@ -226,11 +217,6 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
       await toggleMute({ channelId });
       const newMuted = !isMuted;
       setIsMuted(newMuted);
-      
-      // Recording: update GainNode (0 = silence, 1 = normal) - track stays enabled so MediaRecorder gets valid data
-      if (recordingGainRef.current) {
-        recordingGainRef.current.gain.value = newMuted ? 0 : 1;
-      }
       
       // Peers: replaceTrack with silent track when muted, real track when unmuted
       const realTrack = localStreamRef.current?.getAudioTracks()[0] ?? null;
@@ -264,131 +250,13 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
       console.error('Failed to toggle deafen:', err);
     }
   }, [channelId, isInVoiceRoom, isDeafened, toggleDeafen]);
-  
-  // Stable ID: only changes when someone joins/leaves, not when they mute/deafen
-  const participantIds = useMemo(
-    () => currentParticipants.map((p) => p.userId.toHexString()).sort().join(','),
-    [currentParticipants]
-  );
-
-  // Auto-record voice to DB: designated recorder (smallest identity) saves chunks
-  // Solo: record from mic directly. With remotes: mix via GainNode (mute-safe). AudioContext must be resumed.
-  useEffect(() => {
-    if (!currentRoom || !isInVoiceRoom || !localStreamRef.current || !currentUserId || !channelId) return;
-    const myHex = currentUserId.toHexString();
-    const isRecorder = currentParticipants.every((p) => p.userId.toHexString() >= myHex);
-    if (!isRecorder || mediaRecorderRef.current?.state === 'recording') return;
-
-    const localStream = localStreamRef.current;
-    const remoteStreams = [...remoteStreamsRef.current.values()];
-    let cancelled = false;
-
-    void (async () => {
-      let streamToRecord: MediaStream;
-      if (remoteStreams.length === 0) {
-        streamToRecord = localStream;
-        recordingGainRef.current = null;
-        recordingCtxRef.current = null;
-      } else {
-        try {
-          const ctx = new AudioContext();
-          recordingCtxRef.current = ctx;
-          const gainNode = ctx.createGain();
-          gainNode.gain.value = currentParticipant?.muted ? 0 : 1;
-          recordingGainRef.current = gainNode;
-
-          const dest = ctx.createMediaStreamDestination();
-          localStream.getAudioTracks().forEach((track) => {
-            const source = ctx.createMediaStreamSource(new MediaStream([track]));
-            source.connect(gainNode);
-          });
-          gainNode.connect(dest);
-          remoteStreams.forEach((s) => {
-            s.getTracks().forEach((track) => {
-              if (track.kind === 'audio') {
-                const source = ctx.createMediaStreamSource(new MediaStream([track]));
-                source.connect(dest);
-              }
-            });
-          });
-          streamToRecord = dest.stream;
-
-          if (ctx.state === 'suspended') await ctx.resume();
-        } catch (err) {
-          voiceLog('GainNode mix failed, using local stream', err);
-          streamToRecord = localStream;
-          recordingGainRef.current = null;
-          recordingCtxRef.current = null;
-        }
-      }
-
-      if (cancelled) return;
-
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-      const recorder = new MediaRecorder(streamToRecord, { mimeType, audioBitsPerSecond: 64000 });
-      // Only reset chunk index when starting in a NEW room; else continue (avoids corruption when effect re-runs)
-      if (lastRecordedRoomRef.current !== currentRoom.id) {
-        chunkIndexRef.current = 0;
-        lastRecordedRoomRef.current = currentRoom.id;
-      }
-      recorder.ondataavailable = async (e) => {
-        voiceLog('Chunk received:', e.data.size, 'bytes');
-        if (!channelId || !currentRoom) return;
-        if (e.data.size === 0) return;
-        const blob = e.data;
-        const uploadPromise = new Promise<void>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = async () => {
-            try {
-              const base64 = (reader.result as string).split(',')[1] ?? '';
-              for (let i = 0; i < base64.length; i += CHUNK_MAX_SIZE) {
-                const chunk = base64.slice(i, i + CHUNK_MAX_SIZE);
-                const idx = chunkIndexRef.current++;
-                try {
-                  await saveVoiceChunk({
-                    roomId: currentRoom.id,
-                    channelId,
-                    chunkIndex: BigInt(idx),
-                    dataBase64: chunk,
-                  });
-                  voiceLog('Saved chunk', idx);
-                } catch (err) {
-                  console.warn('Failed to save voice chunk:', err);
-                }
-              }
-            } finally {
-              resolve();
-            }
-          };
-          reader.readAsDataURL(blob);
-        });
-        pendingUploadsRef.current.add(uploadPromise);
-        uploadPromise.finally(() => pendingUploadsRef.current.delete(uploadPromise));
-      };
-      recorder.start(3000); // 3s timeslice - wait for encoder to produce valid data
-      mediaRecorderRef.current = recorder;
-      voiceLog('Auto-recording started (saving to DB)');
-    })();
-
-    return () => {
-      cancelled = true;
-      if (dataIntervalRef.current) {
-        clearInterval(dataIntervalRef.current);
-        dataIntervalRef.current = null;
-      }
-      if (mediaRecorderRef.current?.state === 'recording') {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current = null;
-      }
-    };
-  }, [currentRoom, participantIds, isInVoiceRoom, currentUserId, channelId, saveVoiceChunk]);
 
   // Create peer connection
   const createPeerConnection = useCallback((userId: string, targetIdentity: Identity): RTCPeerConnection => {
     voiceLog('Creating peer connection for', userId);
     const pc = new RTCPeerConnection(rtcConfig);
     
-    // Add local stream track (silent when muted, real when unmuted - track stays enabled for recording)
+    // Add local stream track (silent when muted, real when unmuted)
     const realTrack = localStreamRef.current?.getAudioTracks()[0] ?? null;
     const trackToAdd = isMuted && realTrack
       ? createSilentAudioTrack(silentCtxRef, silentTrackRef) ?? realTrack
@@ -398,7 +266,10 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     }
     
     pc.onconnectionstatechange = () => voiceLog('Connection state for', userId, ':', pc.connectionState);
-    pc.oniceconnectionstatechange = () => voiceLog('ICE state for', userId, ':', pc.iceConnectionState);
+    pc.oniceconnectionstatechange = () => {
+      voiceLog('ICE state for', userId, ':', pc.iceConnectionState);
+      updateConnectionStatus();
+    };
     // Handle remote stream
     pc.ontrack = (event) => {
       voiceLog('Remote track received from', userId);
@@ -414,7 +285,6 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
       }
       
       audio.srcObject = remoteStream;
-      remoteStreamsRef.current.set(userId, remoteStream);
     };
     
     // Handle ICE candidates - only send real candidates (end-of-candidates can cause issues if sent too early)
@@ -429,7 +299,7 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     };
     
     return pc;
-  }, [channelId, isDeafened, isMuted, sendSignal, currentUserId]);
+  }, [channelId, isDeafened, isMuted, sendSignal, currentUserId, updateConnectionStatus]);
   
   // Handle signaling messages
   useEffect(() => {
@@ -455,6 +325,7 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
       if (!pc) {
         pc = createPeerConnection(fromUserId, signal.fromUserId);
         peerConnectionsRef.current.set(fromUserId, pc);
+        updateConnectionStatus();
       }
       
       try {
@@ -522,7 +393,7 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
       }
     }
     })();
-  }, [voiceSignaling, currentRoom, isInVoiceRoom, currentUserId, channelId, createPeerConnection, sendSignal]);
+  }, [voiceSignaling, currentRoom, isInVoiceRoom, currentUserId, channelId, createPeerConnection, sendSignal, updateConnectionStatus]);
   
   // Create offer for new participants (glare prevention: only smaller identity creates offer)
   useEffect(() => {
@@ -543,6 +414,7 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
       if (!peerConnectionsRef.current.has(userId)) {
         const pc = createPeerConnection(userId, participant.userId);
         peerConnectionsRef.current.set(userId, pc);
+        updateConnectionStatus();
         
         try {
           // Wait for peer to subscribe and be ready (helps when 3+ participants)
@@ -571,7 +443,7 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
         }
       }
     });
-  }, [currentParticipants, currentRoom, isInVoiceRoom, currentUserId, channelId, createPeerConnection, sendSignal]);
+  }, [currentParticipants, currentRoom, isInVoiceRoom, currentUserId, channelId, createPeerConnection, sendSignal, updateConnectionStatus]);
   
   // Clean up when leaving voice room
   useEffect(() => {
@@ -579,11 +451,6 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
       sentOffersRef.current.clear();
       processedSignalsRef.current.clear();
       pendingIceCandidatesRef.current.clear();
-      remoteStreamsRef.current.clear();
-      if (mediaRecorderRef.current?.state === 'recording') {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current = null;
-      }
     }
   }, [isInVoiceRoom]);
   
@@ -595,10 +462,9 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     }
   }, [currentParticipant]);
 
-  // When mute state changes (from server or UI), update recording gain and peer replaceTrack
+  // When mute state changes (from server or UI), sync replaceTrack on peer connections
   useEffect(() => {
     if (!isInVoiceRoom) return;
-    recordingGainRef.current && (recordingGainRef.current.gain.value = isMuted ? 0 : 1);
     const realTrack = localStreamRef.current?.getAudioTracks()[0] ?? null;
     const silentTrack = isMuted ? createSilentAudioTrack(silentCtxRef, silentTrackRef) : null;
     peerConnectionsRef.current.forEach((pc) => {
@@ -623,9 +489,11 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     isConnected: isInVoiceRoom,
     isMuted,
     isDeafened,
+    connectionStatus,
     participants: currentParticipants,
     joinVoice: handleJoinVoice,
     leaveVoice: handleLeaveVoice,
+    prepareForChannelSwitch,
     toggleMute: handleToggleMute,
     toggleDeafen: handleToggleDeafen,
   };

@@ -1,29 +1,30 @@
 .language-selector {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   align-items: center;
 }
 
 .lang-btn {
-  background: #2f3136;
-  border: 1px solid #202225;
+  background: none;
+  border: none;
   border-radius: 4px;
   color: #b9bbbe;
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
-  min-width: 40px;
+  transition: background-color 0.2s, color 0.2s;
+  font-family: inherit;
 }
 
 .lang-btn:hover {
-  background: #393c43;
+  background-color: #3c3f44;
   color: #fff;
 }
 
-.lang-btn.active {
-  background: #5865f2;
+.lang-btn--active,
+.lang-btn.active,
+.lang-btn--active {
+  background-color: #393c43;
   color: #fff;
-  border-color: #4752c4;
 }

@@ -1,64 +1,110 @@
 .voice-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 8px;
   background: #2f3136;
-  border-radius: 4px;
-}
-
-.voice-controls.connected {
-  background: #5865f2;
+  border-radius: 6px;
+  min-width: 0;
 }
 
 .voice-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #fff;
-  font-size: 14px;
-  margin-right: 8px;
+  gap: 6px;
+  color: #b9bbbe;
+  font-size: 12px;
+  min-width: 0;
+  flex-shrink: 0;
 }
 
 .voice-indicator {
-  font-size: 16px;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .participants-count {
   font-weight: 500;
+  color: #dcddde;
+  white-space: nowrap;
+}
+
+.voice-connection-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.voice-connection-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.voice-connection-status.status-strong {
+  color: #43b581;
+}
+
+.voice-connection-status.status-connecting {
+  color: #faa61a;
+}
+
+.voice-connection-status.status-connecting svg {
+  animation: pulse-connect 1.2s ease-in-out infinite;
+}
+
+.voice-connection-status.status-weak {
+  color: #faa61a;
+}
+
+.voice-connection-status.status-disconnected {
+  color: #f04747;
+}
+
+@keyframes pulse-connect {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .voice-buttons {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .voice-btn {
-  background: rgba(0, 0, 0, 0.2);
+  background: #3c3f44;
   border: none;
-  border-radius: 4px;
-  color: #fff;
+  border-radius: 6px;
+  color: #b9bbbe;
   cursor: pointer;
-  padding: 8px;
+  padding: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s, opacity 0.2s;
-  min-width: 36px;
-  height: 36px;
+  transition: background-color 0.15s, color 0.15s;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
 }
 
 .voice-btn:hover {
-  background: rgba(0, 0, 0, 0.3);
+  background: #4f545c;
+  color: #dcddde;
 }
 
 .voice-btn:active {
-  opacity: 0.7;
+  transform: scale(0.97);
 }
 
 .voice-btn.muted {
   background: #f04747;
+  color: #fff;
 }
 
 .voice-btn.muted:hover {
@@ -67,74 +113,30 @@
 
 .voice-btn.deafened {
   background: #f04747;
+  color: #fff;
 }
 
 .voice-btn.deafened:hover {
   background: #d84040;
 }
 
-.join-btn {
-  background: #43b581;
-  padding: 8px 16px;
-  gap: 8px;
-}
-
-.join-btn:hover {
-  background: #3ca374;
-}
-
-.join-btn span {
-  font-size: 14px;
-  font-weight: 600;
-}
-
 .leave-btn {
-  background: #f04747;
-  padding: 8px 16px;
-  gap: 8px;
+  background: #5865f2;
+  color: #fff;
+  padding: 8px 12px;
 }
 
 .leave-btn:hover {
-  background: #d84040;
+  background: #4752c4;
 }
 
 .leave-btn span {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 
 .voice-btn svg {
   width: 20px;
   height: 20px;
-}
-
-/* Recording button */
-.voice-btn.record-btn {
-  gap: 6px;
-  padding: 8px 12px;
-}
-
-.voice-btn.record-btn.recording {
-  background: #f04747;
-  animation: record-pulse 1.5s ease-in-out infinite;
-}
-
-.voice-btn.record-btn.recording:hover {
-  background: #d84040;
-}
-
-.record-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.voice-btn.record-btn.recording .record-dot {
-  background: #fff;
-}
-
-@keyframes record-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  flex-shrink: 0;
 }

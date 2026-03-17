@@ -14,7 +14,6 @@ A real-time Discord-like chat application built with SpacetimeDB and React.
 - 🔵 **Google OAuth** authentication
 - 👑 **Role-based permissions** system
 - 🎤 **Voice chat** with WebRTC (STUN + TURN)
-- 📼 **Voice recordings** – auto-saved to DB, admin-only playback
 - 🌐 **Multi-language** (Turkish / English)
 
 ## Getting Started
@@ -69,7 +68,6 @@ OM/
 │   │   ├── MessageInput.tsx
 │   │   ├── UserList.tsx
 │   │   ├── VoiceControls.tsx
-│   │   ├── VoiceRecordings.tsx
 │   │   ├── CreateChannelModal.tsx
 │   │   ├── AddUserToChannelModal.tsx
 │   │   ├── RoleManagementModal.tsx
@@ -79,7 +77,7 @@ OM/
 │   │   ├── NotificationBar.tsx
 │   │   └── LanguageSelector.tsx
 │   ├── hooks/
-│   │   └── useVoiceChat.ts   # WebRTC voice + auto-recording
+│   │   └── useVoiceChat.ts   # WebRTC voice chat
 │   ├── contexts/
 │   │   └── LanguageContext.tsx
 │   ├── module_bindings/      # Generated SpacetimeDB bindings

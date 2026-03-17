@@ -11,8 +11,5 @@ import {
 } from "spacetimedb";
 
 export default {
-  roomId: __t.u64(),
-  channelId: __t.u64(),
-  chunkIndex: __t.u64(),
-  dataBase64: __t.string(),
+  avatar: __t.option(__t.string()),
 };

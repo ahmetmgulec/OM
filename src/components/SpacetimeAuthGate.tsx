@@ -1,12 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from 'react-oidc-context';
 import { SpacetimeDBProvider } from 'spacetimedb/react';
 import { DbConnection, ErrorContext } from '../module_bindings/index.ts';
 import { Identity } from 'spacetimedb';
 import App from '../App.tsx';
+import { SessionExpiredScreen } from './SessionExpiredScreen';
 import { oidcConfig, isSpacetimeAuthConfigured } from '../config/auth';
 import { useLanguage } from '../contexts/LanguageContext';
 import { SpacetimeAuthLogoutProvider } from '../contexts/LogoutContext';
+import { AuthActivityProvider, hasRecentActivity } from '../contexts/AuthActivityContext';
 
 const HOST = import.meta.env.VITE_SPACETIMEDB_HOST ?? 'ws://localhost:3000';
 const DB_NAME = import.meta.env.VITE_SPACETIMEDB_DB_NAME ?? 'mytestapp';
@@ -39,6 +42,38 @@ function onSigninCallback() {
 function AppWithConnection() {
   const auth = useAuth();
   const { t } = useLanguage();
+  const lastActivityRef = useRef(0);
+  const recoveryAttemptedRef = useRef(false);
+  const [isRecovering, setIsRecovering] = useState(false);
+
+  // Reset recovery flag when error clears (e.g. after successful sign-in)
+  useEffect(() => {
+    if (!auth.error) {
+      recoveryAttemptedRef.current = false;
+      setIsRecovering(false);
+    }
+  }, [auth.error]);
+
+  useEffect(() => {
+    if (!auth.isLoading && !auth.error && !auth.isAuthenticated) {
+      // Try silent sign-in first; skip consent prompt if user already said yes
+      void auth.signinSilent().catch(() => {
+        auth.signinRedirect();
+      });
+    }
+  }, [auth.isLoading, auth.error, auth.isAuthenticated, auth.signinSilent, auth.signinRedirect]);
+
+  // When auth.error with recent activity, try silent recovery once before showing session expired
+  useEffect(() => {
+    if (!auth.error || recoveryAttemptedRef.current) return;
+    if (!hasRecentActivity(lastActivityRef)) return;
+    recoveryAttemptedRef.current = true;
+    setIsRecovering(true);
+    void auth.signinSilent().then(
+      () => setIsRecovering(false),
+      () => setIsRecovering(false)
+    );
+  }, [auth.error, auth.signinSilent]);
 
   const connectionBuilder = useMemo(() => {
     // SpacetimeDB expects OIDC ID token for authentication
@@ -63,33 +98,46 @@ function AppWithConnection() {
   }
 
   if (auth.error) {
-    return (
-      <div className="app-container">
-        <div className="loading-screen">
-          <h1>{t('auth.error') ?? 'Error'}</h1>
-          <p style={{ color: '#b9bbbe', marginTop: 12 }}>{auth.error.message}</p>
+    if (isRecovering) {
+      return (
+        <div className="app-container">
+          <div className="loading-screen">
+            <h1>{t('auth.refreshingSession') ?? 'Refreshing session...'}</h1>
+          </div>
         </div>
-      </div>
+      );
+    }
+    return (
+      <SessionExpiredScreen
+        errorMessage={auth.error.message}
+        onSignInAgain={() => auth.signinRedirect()}
+      />
     );
   }
 
   if (!auth.isAuthenticated) {
-    auth.signinRedirect();
+    const isSilentSignIn = auth.activeNavigator === 'signinSilent';
     return (
       <div className="app-container">
         <div className="loading-screen">
-          <h1>{t('auth.redirecting') ?? 'Redirecting to sign in...'}</h1>
+          <h1>{isSilentSignIn ? (t('auth.loading') ?? 'Loading...') : (t('auth.redirecting') ?? 'Redirecting to sign in...')}</h1>
         </div>
       </div>
     );
   }
 
   return (
-    <SpacetimeAuthLogoutProvider>
-      <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
-        <App />
-      </SpacetimeDBProvider>
-    </SpacetimeAuthLogoutProvider>
+    <AuthActivityProvider lastActivityRef={lastActivityRef}>
+      <SpacetimeAuthLogoutProvider>
+        <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<App />} />
+            </Routes>
+          </BrowserRouter>
+        </SpacetimeDBProvider>
+      </SpacetimeAuthLogoutProvider>
+    </AuthActivityProvider>
   );
 }
 
