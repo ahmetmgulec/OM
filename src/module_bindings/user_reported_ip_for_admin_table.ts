@@ -11,10 +11,6 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  identity: __t.identity().primaryKey(),
-  name: __t.option(__t.string()),
-  online: __t.bool(),
-  avatar: __t.option(__t.string()),
-  authMethod: __t.option(__t.string()).name("auth_method"),
-  lastSeenAt: __t.option(__t.timestamp()).name("last_seen_at"),
+  identity: __t.identity(),
+  ip: __t.string(),
 });

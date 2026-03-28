@@ -6,7 +6,8 @@ interface AuthActivityContextValue {
 
 const AuthActivityContext = createContext<AuthActivityContextValue | null>(null);
 
-const RECENT_ACTIVITY_MS = 10 * 60 * 1000; // 10 minutes
+/** Used for "user is here" session refresh; voice heartbeat + typing keep this fresh. */
+const RECENT_ACTIVITY_MS = 15 * 60 * 1000;
 
 export function AuthActivityProvider({
   children,

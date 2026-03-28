@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from 'react-oidc-context';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ProfilePictureWithEdit } from './ProfilePictureWithEdit';
 import { useEscapeKey } from '../hooks/useEscapeKey';
@@ -31,7 +32,40 @@ export function SettingsModal({
   const [name, setName] = useState(displayName);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [accessTokenRemaining, setAccessTokenRemaining] = useState<string | null>(null);
+  const auth = useAuth();
   const { t } = useLanguage();
+
+  const expiresAtSec = auth.user?.expires_at;
+
+  const formatRemaining = useMemo(
+    () => (expiresAt: number) => {
+      const now = Date.now() / 1000;
+      const sec = Math.max(0, Math.floor(expiresAt - now));
+      if (sec <= 0) return '—';
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      if (m >= 60) {
+        const h = Math.floor(m / 60);
+        const mm = m % 60;
+        return `${h}h ${mm}m`;
+      }
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!isOpen || expiresAtSec === undefined) {
+      setAccessTokenRemaining(null);
+      return;
+    }
+    const tick = () => setAccessTokenRemaining(formatRemaining(expiresAtSec));
+    tick();
+    const id = window.setInterval(tick, 10_000);
+    return () => window.clearInterval(id);
+  }, [isOpen, expiresAtSec, formatRemaining]);
 
   useEffect(() => {
     if (isOpen) {
@@ -104,6 +138,21 @@ export function SettingsModal({
             </button>
           </div>
         </form>
+        {expiresAtSec !== undefined && accessTokenRemaining !== null && (
+          <div
+            className="settings-session-info"
+            style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #4f545c', fontSize: '13px', color: '#b9bbbe' }}
+          >
+            <div>
+              <strong style={{ color: '#dcddde' }}>{t('settings.accessTokenExpires')}:</strong>{' '}
+              {accessTokenRemaining}
+            </div>
+            <p style={{ margin: '8px 0 0', lineHeight: 1.4 }}>{t('settings.accessTokenExpiresHint')}</p>
+          </div>
+        )}
+        {expiresAtSec === undefined && isOpen && auth.isAuthenticated && (
+          <p style={{ marginTop: '16px', fontSize: '13px', color: '#b9bbbe' }}>{t('settings.accessTokenUnknown')}</p>
+        )}
         {showRolesButton && onOpenRoles && (
           <div className="form-actions" style={{ marginTop: '16px', borderTop: '1px solid #4f545c', paddingTop: '16px' }}>
             <button

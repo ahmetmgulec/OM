@@ -75,10 +75,24 @@ export const User = __t.object("User", {
   online: __t.bool(),
   avatar: __t.option(__t.string()),
   authMethod: __t.option(__t.string()),
-  lastIpAddress: __t.option(__t.string()),
   lastSeenAt: __t.option(__t.timestamp()),
 });
 export type User = __Infer<typeof User>;
+
+export const UserReportedIp = __t.object("UserReportedIp", {
+  identity: __t.identity(),
+  ip: __t.string(),
+});
+export type UserReportedIp = __Infer<typeof UserReportedIp>;
+
+export const UserReportedIpForAdmin = __t.object("UserReportedIpForAdmin", {});
+export type UserReportedIpForAdmin = __Infer<typeof UserReportedIpForAdmin>;
+
+export const UserReportedIpRow = __t.object("UserReportedIpRow", {
+  identity: __t.identity(),
+  ip: __t.string(),
+});
+export type UserReportedIpRow = __Infer<typeof UserReportedIpRow>;
 
 export const VoiceParticipant = __t.object("VoiceParticipant", {
   id: __t.u64(),

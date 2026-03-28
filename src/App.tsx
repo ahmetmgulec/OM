@@ -22,6 +22,12 @@ import { EditAvatarModal } from './components/EditAvatarModal';
 import { LanguageSelector } from './components/LanguageSelector';
 import { NotificationBar } from './components/NotificationBar';
 import { useVoiceChat } from './hooks/useVoiceChat';
+import {
+  readMicSendGainPercent,
+  writeMicSendGainPercent,
+  readIncomingVoiceVolume,
+  writeIncomingVoiceVolumePercent,
+} from './config/voiceSettings';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuthActivity } from './contexts/AuthActivityContext';
 
@@ -36,6 +42,10 @@ function App() {
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   const [accountSetupTimedOut, setAccountSetupTimedOut] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type?: 'error' | 'success' | 'info' } | null>(null);
+  const [micSendGainPercent, setMicSendGainPercent] = useState(() => readMicSendGainPercent());
+  const [incomingVoiceVolumePercent, setIncomingVoiceVolumePercent] = useState(() =>
+    Math.round(readIncomingVoiceVolume() * 100)
+  );
 
   const { identity, isActive: connected } = useSpacetimeDB();
   const { user: authUser } = useAuth();
@@ -65,7 +75,18 @@ function App() {
     currentUserId: identity || null,
     enabled: connected && !!identity && !!selectedChannelId,
     onError: (msg) => setNotification({ message: msg, type: 'error' }),
+    micSendGainPercent,
+    incomingVoiceVolume: incomingVoiceVolumePercent / 100,
   });
+
+  // Voice: no clicks while speaking — ping activity so OIDC "active user" refresh still runs.
+  useEffect(() => {
+    if (!voiceChat.isConnected) return;
+    markActivity();
+    const id = window.setInterval(() => markActivity(), 60_000);
+    return () => window.clearInterval(id);
+  }, [voiceChat.isConnected, markActivity]);
+
   const logout = useLogout();
   const setName = useReducer(typedReducers.setName);
   const setAvatar = useReducer(typedReducers.setAvatar);
@@ -88,6 +109,15 @@ function App() {
   const [roleMembers] = useTable(tables.roleMember);
   const [voiceRooms] = useTable(tables.voiceRoom);
   const [voiceParticipants] = useTable(tables.voiceParticipant);
+  const [userReportedIpsForAdmin] = useTable(tables.user_reported_ip_for_admin);
+
+  const reportedIpByUserHex = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const row of userReportedIpsForAdmin) {
+      m.set(row.identity.toHexString(), row.ip);
+    }
+    return m;
+  }, [userReportedIpsForAdmin]);
 
   const displayedUsers = users;
   
@@ -110,7 +140,7 @@ function App() {
       setAccountSetupTimedOut(false);
       return;
     }
-    const timer = setTimeout(() => setAccountSetupTimedOut(true), 10000);
+    const timer = setTimeout(() => setAccountSetupTimedOut(true), 30000);
     return () => clearTimeout(timer);
   }, [connected, identity, users]);
 
@@ -130,20 +160,38 @@ function App() {
       .sort((a, b) => (a.sent.toDate() > b.sent.toDate() ? 1 : -1));
   }, [messages, selectedChannelId]);
 
-  // Voice channel participants: channelId -> participants with names
+  // Voice channel participants: channelId -> participants with names, avatars, mic-threshold “speaking” ring (WebRTC VAD)
   const voiceChannelParticipants = useMemo(() => {
-    const map = new Map<bigint, { identity: Identity; name?: string }[]>();
+    const map = new Map<
+      bigint,
+      {
+        identity: Identity;
+        name?: string;
+        avatar?: string;
+        isSpeaking?: boolean;
+        muted: boolean;
+        deafened: boolean;
+      }[]
+    >();
     voiceRooms.forEach(room => {
       const participants = voiceParticipants
         .filter(p => p.roomId === room.id)
         .map(p => {
           const u = users.find(usr => usr.identity.isEqual(p.userId));
-          return { identity: p.userId, name: u?.name };
+          const hex = p.userId.toHexString();
+          return {
+            identity: p.userId,
+            name: u?.name,
+            avatar: u?.avatar,
+            isSpeaking: voiceChat.speakingByHex[hex] ?? false,
+            muted: p.muted,
+            deafened: p.deafened,
+          };
         });
       map.set(room.channelId, participants);
     });
     return map;
-  }, [voiceRooms, voiceParticipants, users]);
+  }, [voiceRooms, voiceParticipants, users, voiceChat.speakingByHex]);
 
   const usersMap = useMemo(() => {
     const map = new Map<string, { name?: string; identity: Identity; avatar?: string }>();
@@ -568,6 +616,16 @@ function App() {
             onLeave={voiceChat.leaveVoice}
             onToggleMute={voiceChat.toggleMute}
             onToggleDeafen={voiceChat.toggleDeafen}
+            micSendGainPercent={micSendGainPercent}
+            onMicSendGainPercentChange={(v) => {
+              writeMicSendGainPercent(v);
+              setMicSendGainPercent(v);
+            }}
+            incomingVoiceVolumePercent={incomingVoiceVolumePercent}
+            onIncomingVoiceVolumePercentChange={(pct) => {
+              writeIncomingVoiceVolumePercent(pct);
+              setIncomingVoiceVolumePercent(pct);
+            }}
           />
         }
       />
@@ -671,6 +729,7 @@ function App() {
         </div>
         <UserList 
           users={displayedUsers} 
+          reportedIpByUserHex={reportedIpByUserHex}
           currentUserId={identity}
           selectedChannelId={selectedChannelId}
           channelMembers={channelMembers}

@@ -105,25 +105,58 @@
 .channel-participant {
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 4px 8px;
   font-size: 13px;
   color: #8e9297;
   cursor: default;
 }
 
-.channel-participant .participant-status {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: #43b581;
-  margin-right: 8px;
+.channel-participant-avatar-wrap {
   flex-shrink: 0;
+  border-radius: 50%;
+  padding: 2px;
+  border: 2px solid #4f545c;
+  background: #36393f;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.channel-participant-avatar-wrap.speaking {
+  border-color: #43b581;
+  box-shadow: 0 0 0 1px rgba(67, 181, 129, 0.35);
+}
+
+.channel-participant-avatar {
+  display: block;
+  border-radius: 50%;
+  vertical-align: middle;
 }
 
 .channel-participant .participant-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.channel-participant .participant-name-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.participant-voice-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: #ed4245;
+  opacity: 0.95;
+}
+
+.participant-voice-badge-deafen {
+  color: #faa61a;
 }
 
 .channel-item {

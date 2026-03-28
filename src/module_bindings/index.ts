@@ -65,6 +65,7 @@ import RoleRow from "./role_table";
 import RoleMemberRow from "./role_member_table";
 import ThreadRow from "./thread_table";
 import UserRow from "./user_table";
+import UserReportedIpForAdminRow from "./user_reported_ip_for_admin_table";
 import VoiceParticipantRow from "./voice_participant_table";
 import VoiceRoomRow from "./voice_room_table";
 import VoiceSignalingRow from "./voice_signaling_table";
@@ -131,6 +132,9 @@ const tablesSchema = __schema({
       ] },
       { accessor: 'role_member_by_role', name: 'roleMember_role_id_idx_btree', algorithm: 'btree', columns: [
         'roleId',
+      ] },
+      { accessor: 'role_member_by_user_id', name: 'roleMember_user_id_idx_btree', algorithm: 'btree', columns: [
+        'userId',
       ] },
     ],
     constraints: [
@@ -208,6 +212,13 @@ const tablesSchema = __schema({
       { name: 'voiceSignaling_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, VoiceSignalingRow),
+  user_reported_ip_for_admin: __table({
+    name: 'user_reported_ip_for_admin',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, UserReportedIpForAdminRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */

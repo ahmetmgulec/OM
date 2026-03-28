@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuthActivity } from '../contexts/AuthActivityContext';
 import './MessageInput.css';
 
 interface MessageInputProps {
@@ -8,9 +9,24 @@ interface MessageInputProps {
   disabled?: boolean;
 }
 
+const TYPING_ACTIVITY_THROTTLE_MS = 45_000;
+
 export function MessageInput({ onSubmit, placeholder = 'Type a message...', disabled = false }: MessageInputProps) {
   const [text, setText] = useState('');
   const { t } = useLanguage();
+  const { markActivity } = useAuthActivity();
+  const lastTypingActivityRef = useRef(0);
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setText(e.target.value);
+      const now = Date.now();
+      if (now - lastTypingActivityRef.current < TYPING_ACTIVITY_THROTTLE_MS) return;
+      lastTypingActivityRef.current = now;
+      markActivity();
+    },
+    [markActivity]
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +48,7 @@ export function MessageInput({ onSubmit, placeholder = 'Type a message...', disa
       <form onSubmit={handleSubmit}>
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder || t('input.placeholder')}
           disabled={disabled}

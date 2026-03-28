@@ -86,7 +86,10 @@
     "title": "Settings",
     "displayName": "Display Name",
     "save": "Save",
-    "logout": "Logout"
+    "logout": "Logout",
+    "accessTokenExpires": "Access token expires in",
+    "accessTokenExpiresHint": "Your session is refreshed automatically in the background before this runs out.",
+    "accessTokenUnknown": "Expiry time not available"
   },
   "channels": {
     "createChannel": "Create Channel",
@@ -184,7 +187,19 @@
     },
     "micPermissionDenied": "Microphone access denied. Please allow microphone access to use voice chat.",
     "mustBeMember": "You must be a channel member to join voice.",
-    "joinFailed": "Failed to join voice chat. Please try again."
+    "joinFailed": "Failed to join voice chat. Please try again.",
+    "micSendVolume": "Microphone send volume",
+    "micSendVolumeHint": "How loud you sound to others (boosts or reduces the audio sent over voice). 100% is normal; higher can clip if your mic is already loud.",
+    "micSendQuieter": "Quieter",
+    "micSendLouder": "Louder",
+    "incomingVolume": "Incoming voice volume",
+    "incomingVolumeHint": "How loud others sound to you (does not affect what they hear).",
+    "voiceSettingsGroup": "Voice settings",
+    "voiceSettingsButtonTitle": "Voice settings (mic send & incoming volume)",
+    "closeVoiceSettings": "Close voice settings",
+    "mutedInVoice": "Microphone muted",
+    "deafenedInVoice": "Deafened (incoming audio off)",
+    "muteDisabledWhileDeafenedTitle": "Cannot unmute while deafened — undeafen first"
   },
   "errors": {
     "sendMessageFailed": "Failed to send message.",

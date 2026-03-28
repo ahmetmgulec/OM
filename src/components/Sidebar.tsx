@@ -1,5 +1,7 @@
 import React from 'react';
+import { MicOff, VolumeX } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { Avatar } from './Avatar';
 import './Sidebar.css';
 
 interface Channel {
@@ -12,6 +14,10 @@ interface Channel {
 interface VoiceParticipant {
   identity: import('spacetimedb').Identity;
   name?: string;
+  avatar?: string;
+  isSpeaking?: boolean;
+  muted?: boolean;
+  deafened?: boolean;
 }
 
 interface SidebarProps {
@@ -95,9 +101,31 @@ export function Sidebar({ channels, selectedChannelId, onSelectChannel, onSelect
                               <div className="channel-participants">
                                 {participants.map((p) => (
                                   <div key={p.identity.toHexString()} className="channel-participant">
-                                    <span className="participant-status" />
+                                    <div
+                                      className={`channel-participant-avatar-wrap ${p.isSpeaking ? 'speaking' : ''}`}
+                                      aria-hidden
+                                    >
+                                      <Avatar
+                                        avatarUrl={p.avatar}
+                                        name={p.name}
+                                        size={22}
+                                        className="channel-participant-avatar"
+                                      />
+                                    </div>
                                     <span className="participant-name">
-                                      {p.name?.trim() || t('common.anonymous')}
+                                      <span className="participant-name-text">
+                                        {p.name?.trim() || t('common.anonymous')}
+                                      </span>
+                                      {p.muted && (
+                                        <span className="participant-voice-badge" title={t('voice.mutedInVoice')} aria-label={t('voice.mutedInVoice')}>
+                                          <MicOff size={12} strokeWidth={2.5} aria-hidden />
+                                        </span>
+                                      )}
+                                      {p.deafened && (
+                                        <span className="participant-voice-badge participant-voice-badge-deafen" title={t('voice.deafenedInVoice')} aria-label={t('voice.deafenedInVoice')}>
+                                          <VolumeX size={12} strokeWidth={2.5} aria-hidden />
+                                        </span>
+                                      )}
                                     </span>
                                   </div>
                                 ))}

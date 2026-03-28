@@ -9,7 +9,6 @@ interface User {
   identity: Identity;
   name?: string;
   online: boolean;
-  lastIpAddress?: string;
   avatar?: string;
   lastSeenAt?: { microsSinceUnixEpoch: bigint };
   authMethod?: string;
@@ -22,6 +21,8 @@ interface ChannelMember {
 
 interface UserListProps {
   users: readonly User[];
+  /** Admin-only view rows; empty map for non-admins */
+  reportedIpByUserHex?: ReadonlyMap<string, string>;
   currentUserId: Identity | null;
   selectedChannelId?: bigint | null;
   channelMembers?: readonly ChannelMember[];
@@ -32,6 +33,7 @@ interface UserListProps {
 
 export function UserList({ 
   users, 
+  reportedIpByUserHex,
   currentUserId, 
   selectedChannelId,
   channelMembers = [],
@@ -207,7 +209,7 @@ export function UserList({
           name: selectedUser.name,
           online: selectedUser.online,
           avatar: selectedUser.avatar,
-          lastIpAddress: selectedUser.lastIpAddress,
+          lastIpAddress: reportedIpByUserHex?.get(selectedUser.identity.toHexString()),
           lastSeenAt: selectedUser.lastSeenAt,
           authMethod: selectedUser.authMethod,
         } : null}

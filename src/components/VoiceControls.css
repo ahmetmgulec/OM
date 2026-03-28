@@ -1,11 +1,24 @@
 .voice-controls {
+  position: relative;
+  z-index: 2;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
   padding: 8px;
   background: #2f3136;
   border-radius: 6px;
   min-width: 0;
+}
+
+.voice-controls-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.voice-controls-row-main {
+  gap: 6px;
 }
 
 .voice-status {
@@ -102,6 +115,11 @@
   transform: scale(0.97);
 }
 
+.voice-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .voice-btn.muted {
   background: #f04747;
   color: #fff;
@@ -118,6 +136,16 @@
 
 .voice-btn.deafened:hover {
   background: #d84040;
+}
+
+.voice-btn.voice-settings-active {
+  background: #4f545c;
+  color: #fff;
+}
+
+.voice-btn.voice-settings-active:hover {
+  background: #5c6169;
+  color: #fff;
 }
 
 .leave-btn {
@@ -139,4 +167,118 @@
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+}
+
+/* Popover above the control bar (not stacked below). */
+.voice-controls-settings {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  background: #2f3136;
+  border: 1px solid #202225;
+  border-radius: 8px;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+  max-height: min(50vh, 280px);
+  overflow-y: auto;
+}
+
+.voice-controls-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -2px -2px 4px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #202225;
+}
+
+.voice-controls-settings-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #dcddde;
+  line-height: 1.2;
+}
+
+.voice-controls-settings-close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #b9bbbe;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.voice-controls-settings-close:hover {
+  background: #3c3f44;
+  color: #fff;
+}
+
+.voice-control-slider-block {
+  min-width: 0;
+}
+
+.voice-control-slider-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.voice-control-slider-label-row label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #b9bbbe;
+}
+
+.voice-control-slider-value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #dcddde;
+  flex-shrink: 0;
+}
+
+.voice-control-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.voice-control-slider-end {
+  font-size: 9px;
+  color: #72767d;
+  flex-shrink: 0;
+  max-width: 52px;
+  line-height: 1.15;
+}
+
+.voice-control-range {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  accent-color: #5865f2;
+  cursor: pointer;
+}
+
+.voice-control-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #72767d;
 }

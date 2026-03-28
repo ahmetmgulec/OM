@@ -29,12 +29,26 @@ function applyHighQualityAudio(pc: RTCPeerConnection) {
 import { useTable, useReducer } from 'spacetimedb/react';
 import { tables } from '../module_bindings';
 import { typedReducers } from '../reducers';
+import {
+  DEFAULT_MIC_SEND_GAIN_PERCENT,
+  MAX_MIC_SEND_GAIN_PERCENT,
+  MIN_MIC_SEND_GAIN_PERCENT,
+} from '../config/voiceSettings';
+
+/** Local ring: tap raw mic (pre–send-gain) so the indicator isn’t dimmed when send volume is low. */
+const LOCAL_SPEAKING_RING_THRESHOLD = 10;
+/** Remote streams: slightly higher to limit false positives from line noise. */
+const REMOTE_SPEAKING_RING_THRESHOLD = 18;
 
 interface UseVoiceChatOptions {
   channelId: bigint | null;
   currentUserId: Identity | null;
   enabled: boolean;
   onError?: (message: string) => void;
+  /** 50–200: outgoing mic gain as % (100 = unity). Applied via Web Audio GainNode to audio sent to peers. */
+  micSendGainPercent?: number;
+  /** 0–1, applied to remote peer `HTMLAudioElement.volume` (incoming voice). */
+  incomingVoiceVolume?: number;
 }
 
 /** Creates a silent audio track for replaceTrack when muting. Keeps AudioContext alive. */
@@ -60,6 +74,32 @@ function createSilentAudioTrack(ctxRef: { current: AudioContext | null }, trackR
 
 export type VoiceConnectionStatus = 'strong' | 'connecting' | 'weak' | 'disconnected';
 
+type MicAnalyserBundle = {
+  context: AudioContext;
+  analyser: AnalyserNode;
+  source: MediaStreamAudioSourceNode;
+};
+
+function teardownMicAnalyser(bundle: MicAnalyserBundle | null) {
+  if (!bundle) return;
+  try {
+    bundle.source.disconnect();
+    bundle.analyser.disconnect();
+    void bundle.context.close();
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Average frequency energy above threshold ≈ someone speaking (not silence / noise gate). */
+function isAnalyserSpeaking(analyser: AnalyserNode, threshold = 18): boolean {
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) sum += data[i];
+  return sum / data.length > threshold;
+}
+
 function aggregateConnectionStatus(pcs: Map<string, RTCPeerConnection>): VoiceConnectionStatus {
   if (pcs.size === 0) return 'strong'; // Solo in room, no P2P
   const states = [...pcs.values()].map((pc) => pc.iceConnectionState);
@@ -69,7 +109,14 @@ function aggregateConnectionStatus(pcs: Map<string, RTCPeerConnection>): VoiceCo
   return 'strong';
 }
 
-export function useVoiceChat({ channelId, currentUserId, enabled, onError }: UseVoiceChatOptions) {
+export function useVoiceChat({
+  channelId,
+  currentUserId,
+  enabled,
+  onError,
+  micSendGainPercent = DEFAULT_MIC_SEND_GAIN_PERCENT,
+  incomingVoiceVolume = 1,
+}: UseVoiceChatOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
@@ -88,7 +135,70 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
   const pendingIceCandidatesRef = useRef<Map<string, object[]>>(new Map());
   const silentCtxRef = useRef<AudioContext | null>(null);
   const silentTrackRef = useRef<MediaStreamTrack | null>(null);
-  
+
+  const localMicAnalyserRef = useRef<MicAnalyserBundle | null>(null);
+  const remoteMicAnalysersRef = useRef<Map<string, MicAnalyserBundle>>(new Map());
+  const [speakingByHex, setSpeakingByHex] = useState<Record<string, boolean>>({});
+  const micGainCtxRef = useRef<AudioContext | null>(null);
+  const micGainNodeRef = useRef<GainNode | null>(null);
+  const rawMicStreamRef = useRef<MediaStream | null>(null);
+
+  const attachLocalMicAnalyser = useCallback((stream: MediaStream, opts?: { smoothing?: number }) => {
+    teardownMicAnalyser(localMicAnalyserRef.current);
+    localMicAnalyserRef.current = null;
+    try {
+      const context = new AudioContext();
+      const source = context.createMediaStreamSource(stream);
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = opts?.smoothing ?? 0.85;
+      source.connect(analyser);
+      localMicAnalyserRef.current = { context, analyser, source };
+      void context.resume();
+    } catch (e) {
+      voiceLog('Local mic analyser failed', e);
+    }
+  }, []);
+
+  const attachRemoteMicAnalyser = useCallback((userId: string, stream: MediaStream) => {
+    const prev = remoteMicAnalysersRef.current.get(userId);
+    if (prev) teardownMicAnalyser(prev);
+    try {
+      const context = new AudioContext();
+      const source = context.createMediaStreamSource(stream);
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.85;
+      source.connect(analyser);
+      remoteMicAnalysersRef.current.set(userId, { context, analyser, source });
+      void context.resume();
+    } catch (e) {
+      voiceLog('Remote mic analyser failed', userId, e);
+    }
+  }, []);
+
+  const teardownAllMicAnalysers = useCallback(() => {
+    teardownMicAnalyser(localMicAnalyserRef.current);
+    localMicAnalyserRef.current = null;
+    for (const bundle of remoteMicAnalysersRef.current.values()) {
+      teardownMicAnalyser(bundle);
+    }
+    remoteMicAnalysersRef.current.clear();
+    setSpeakingByHex({});
+  }, []);
+
+  const teardownOutgoingGainPipeline = useCallback(() => {
+    micGainNodeRef.current = null;
+    try {
+      void micGainCtxRef.current?.close();
+    } catch {
+      /* ignore */
+    }
+    micGainCtxRef.current = null;
+    rawMicStreamRef.current?.getTracks().forEach((t) => t.stop());
+    rawMicStreamRef.current = null;
+  }, []);
+
   const [voiceRooms] = useTable(tables.voiceRoom);
   const [voiceParticipants] = useTable(tables.voiceParticipant);
   const [voiceSignaling] = useTable(tables.voiceSignaling);
@@ -144,7 +254,7 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     
     try {
       // Get user media - high quality audio constraints
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const rawStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: { ideal: 48000 },
           channelCount: { ideal: 1 },
@@ -153,12 +263,32 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
           autoGainControl: true,
         },
       });
-      localStreamRef.current = stream;
-      
+      rawMicStreamRef.current = rawStream;
+
+      const gainLinear = Math.min(
+        MAX_MIC_SEND_GAIN_PERCENT / 100,
+        Math.max(MIN_MIC_SEND_GAIN_PERCENT / 100, micSendGainPercent / 100)
+      );
+      const ctx = new AudioContext();
+      const source = ctx.createMediaStreamSource(rawStream);
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = gainLinear;
+      const dest = ctx.createMediaStreamDestination();
+      source.connect(gainNode);
+      gainNode.connect(dest);
+      micGainCtxRef.current = ctx;
+      micGainNodeRef.current = gainNode;
+      void ctx.resume();
+
+      const outgoing = dest.stream;
+      localStreamRef.current = outgoing;
+      // Analyse raw mic so the speaking ring isn’t tied to outgoing gain (slider).
+      attachLocalMicAnalyser(rawStream, { smoothing: 0.55 });
+
       if (localAudioRef.current) {
-        localAudioRef.current.srcObject = stream;
+        localAudioRef.current.srcObject = outgoing;
       }
-      
+
       // Join voice room on server
       await joinVoice({ channelId });
       voiceLog('Joined voice room', channelId.toString());
@@ -172,11 +302,13 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
       }
       console.error('Failed to join voice:', err);
     }
-  }, [channelId, enabled, joinVoice]);
+  }, [channelId, enabled, joinVoice, attachLocalMicAnalyser, micSendGainPercent]);
   
   // Local-only cleanup for channel switch. No server call - join_voice auto-leaves old room.
   const prepareForChannelSwitch = useCallback(() => {
-    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    teardownAllMicAnalysers();
+    teardownOutgoingGainPipeline();
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
     peerConnectionsRef.current.forEach(pc => pc.close());
     peerConnectionsRef.current.clear();
@@ -186,14 +318,16 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     silentCtxRef.current = null;
     silentTrackRef.current = null;
     setIsConnected(false);
-  }, []);
+  }, [teardownAllMicAnalysers, teardownOutgoingGainPipeline]);
 
   // Handle leaving voice room
   const handleLeaveVoice = useCallback(async () => {
     if (!channelId) return;
 
     try {
-      localStreamRef.current?.getTracks().forEach(track => track.stop());
+      teardownAllMicAnalysers();
+      teardownOutgoingGainPipeline();
+      localStreamRef.current?.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
       peerConnectionsRef.current.forEach(pc => pc.close());
       peerConnectionsRef.current.clear();
@@ -207,12 +341,13 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     } catch (err: any) {
       console.error('Failed to leave voice:', err);
     }
-  }, [channelId, leaveVoice]);
+  }, [channelId, leaveVoice, teardownAllMicAnalysers, teardownOutgoingGainPipeline]);
   
   // Handle mute toggle - replaceTrack for peers (silent when muted, real when unmuted)
   const handleToggleMute = useCallback(async () => {
     if (!channelId || !isInVoiceRoom) return;
-    
+    if (isDeafened) return;
+
     try {
       await toggleMute({ channelId });
       const newMuted = !isMuted;
@@ -231,7 +366,7 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     } catch (err: any) {
       console.error('Failed to toggle mute:', err);
     }
-  }, [channelId, isInVoiceRoom, isMuted, toggleMute]);
+  }, [channelId, isInVoiceRoom, isMuted, isDeafened, toggleMute]);
   
   // Handle deafen toggle
   const handleToggleDeafen = useCallback(async () => {
@@ -280,13 +415,17 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
         audio = document.createElement('audio');
         audio.autoplay = true;
         audio.muted = isDeafened;
+        audio.volume = incomingVoiceVolume;
         remoteAudiosRef.current.set(userId, audio);
         document.body.appendChild(audio);
+      } else {
+        audio.volume = incomingVoiceVolume;
       }
-      
+
       audio.srcObject = remoteStream;
+      attachRemoteMicAnalyser(userId, remoteStream);
     };
-    
+
     // Handle ICE candidates - only send real candidates (end-of-candidates can cause issues if sent too early)
     pc.onicecandidate = (event) => {
       if (!event.candidate || !channelId || !currentUserId) return;
@@ -299,7 +438,15 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     };
     
     return pc;
-  }, [channelId, isDeafened, isMuted, sendSignal, currentUserId, updateConnectionStatus]);
+  }, [channelId, isDeafened, isMuted, sendSignal, currentUserId, updateConnectionStatus, attachRemoteMicAnalyser, incomingVoiceVolume]);
+
+  // Apply incoming volume to all remote playback elements (including after reconnect / new peers).
+  useEffect(() => {
+    const v = Math.min(1, Math.max(0, incomingVoiceVolume));
+    remoteAudiosRef.current.forEach((audio) => {
+      audio.volume = v;
+    });
+  }, [incomingVoiceVolume]);
   
   // Handle signaling messages
   useEffect(() => {
@@ -475,6 +622,67 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
       });
     });
   }, [isMuted, isInVoiceRoom]);
+
+  // Voice activity (Web Audio analysers) → green avatar border in sidebar when someone speaks
+  useEffect(() => {
+    if (!isInVoiceRoom || !currentUserId) return;
+    let rafId = 0;
+    let frame = 0;
+    const localHex = currentUserId.toHexString();
+
+    const tick = () => {
+      frame++;
+      const next: Record<string, boolean> = {};
+      const localMic = localMicAnalyserRef.current;
+      if (localMic && !isMuted) {
+        next[localHex] = isAnalyserSpeaking(localMic.analyser, LOCAL_SPEAKING_RING_THRESHOLD);
+      } else {
+        next[localHex] = false;
+      }
+      for (const [hex, bundle] of remoteMicAnalysersRef.current) {
+        next[hex] = isAnalyserSpeaking(bundle.analyser, REMOTE_SPEAKING_RING_THRESHOLD);
+      }
+
+      if (frame % 4 === 0) {
+        setSpeakingByHex((prev) => {
+          const prevKeys = Object.keys(prev);
+          const nextKeys = Object.keys(next);
+          if (prevKeys.length !== nextKeys.length) return next;
+          for (const k of nextKeys) {
+            if (prev[k] !== next[k]) return next;
+          }
+          for (const k of prevKeys) {
+            if (!(k in next)) return next;
+          }
+          return prev;
+        });
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [isInVoiceRoom, currentUserId, isMuted]);
+
+  useEffect(() => {
+    const g = micGainNodeRef.current;
+    if (!g) return;
+    g.gain.value = Math.min(
+      MAX_MIC_SEND_GAIN_PERCENT / 100,
+      Math.max(MIN_MIC_SEND_GAIN_PERCENT / 100, micSendGainPercent / 100)
+    );
+  }, [micSendGainPercent]);
+
+  useEffect(() => {
+    if (!isInVoiceRoom) return;
+    const allowed = new Set(currentParticipants.map((p) => p.userId.toHexString()));
+    for (const hex of remoteMicAnalysersRef.current.keys()) {
+      if (!allowed.has(hex)) {
+        const node = remoteMicAnalysersRef.current.get(hex);
+        if (node) teardownMicAnalyser(node);
+        remoteMicAnalysersRef.current.delete(hex);
+      }
+    }
+  }, [currentParticipants, isInVoiceRoom]);
   
   // Cleanup on unmount or channel change
   useEffect(() => {
@@ -491,6 +699,7 @@ export function useVoiceChat({ channelId, currentUserId, enabled, onError }: Use
     isDeafened,
     connectionStatus,
     participants: currentParticipants,
+    speakingByHex,
     joinVoice: handleJoinVoice,
     leaveVoice: handleLeaveVoice,
     prepareForChannelSwitch,

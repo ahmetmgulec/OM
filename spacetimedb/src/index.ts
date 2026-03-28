@@ -15,7 +15,6 @@ const user = table(
     online: t.bool(),
     avatar: t.string().optional(),
     authMethod: t.string().optional(), // 'email', 'google', or undefined for anonymous
-    lastIpAddress: t.string().optional(), // Last known IP address (only visible to admins)
     lastSeenAt: t.timestamp().optional(), // When user went offline (for "last login" display)
   }
 );
@@ -168,7 +167,7 @@ const roleMember = table(
     public: true,
     indexes: [
       { accessor: 'role_member_by_role', name: 'role_member_by_role', algorithm: 'btree', columns: ['roleId'] },
-      // Note: Can't index identity fields directly, will filter manually
+      { accessor: 'role_member_by_user_id', name: 'role_member_user_id', algorithm: 'btree', columns: ['userId'] },
     ],
   },
   {
@@ -180,10 +179,24 @@ const roleMember = table(
   }
 );
 
+/** Client- or connect-time IP hints; not verified. Private — use view `user_reported_ip_for_admin` for admin UI. */
+const userReportedIp = table(
+  {
+    name: 'user_reported_ip',
+    public: false,
+    indexes: [],
+  },
+  {
+    identity: t.identity().primaryKey(),
+    ip: t.string(),
+  }
+);
+
 const spacetimedb = schema({ 
   user, channel, thread, message, channelMember,
   voiceRoom, voiceParticipant, voiceSignaling,
   role, roleMember,
+  userReportedIp,
 });
 export default spacetimedb;
 
@@ -281,6 +294,43 @@ function getUserChannelPermissions(
   return permissions;
 }
 
+/** Global admin: any global role with ADMIN bit (index lookup on role memberships only — safe for views). */
+function hasGlobalAdmin(ctx: { db: any; sender: any }): boolean {
+  for (const rm of ctx.db.roleMember.role_member_by_user_id.filter(ctx.sender)) {
+    const r = ctx.db.role.id.find(rm.roleId);
+    if (r && r.channelId === undefined && (r.permissions & Permissions.ADMIN) !== 0n) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function upsertReportedIp(ctx: { db: any }, identity: any, ip: string): void {
+  const existing = ctx.db.userReportedIp.identity.find(identity);
+  if (existing) {
+    ctx.db.userReportedIp.identity.update({ ...existing, ip });
+  } else {
+    ctx.db.userReportedIp.insert({ identity, ip });
+  }
+}
+
+/** Admins see all rows; everyone else gets an empty result (no IP leakage). */
+export const user_reported_ip_for_admin = spacetimedb.view(
+  { name: 'user_reported_ip_for_admin', public: true },
+  t.array(
+    t.object('UserReportedIpRow', {
+      identity: t.identity(),
+      ip: t.string(),
+    })
+  ),
+  (ctx) => {
+    if (!hasGlobalAdmin(ctx)) {
+      return [];
+    }
+    return ctx.from.userReportedIp;
+  }
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // VALIDATION FUNCTIONS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -332,7 +382,6 @@ export const set_name = spacetimedb.reducer(
       online: user.online,
       avatar: user.avatar,
       authMethod: user.authMethod,
-      lastIpAddress: user.lastIpAddress,
       lastSeenAt: user.lastSeenAt,
     });
   }
@@ -384,22 +433,32 @@ export const set_avatar = spacetimedb.reducer(
   }
 );
 
-// Client reports its public IP after connecting (SpacetimeDB does not expose client IP server-side)
+function looksLikePublicIp(addr: string): boolean {
+  // Loose check: IPv4 dotted quad or IPv6 (hex/colon). Does not prevent spoofing.
+  if (addr.length > 45) return false;
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(addr)) {
+    const parts = addr.split('.').map((p) => Number(p));
+    return parts.every((n) => n >= 0 && n <= 255);
+  }
+  if (addr.includes(':')) {
+    return /^[0-9a-fA-F:.]+$/.test(addr) && addr.split(':').length >= 2;
+  }
+  return false;
+}
+
+// Client-reported address for admin UI only — not the server’s view of the TCP peer.
 export const report_client_ip = spacetimedb.reducer(
   { ip: t.string() },
   (ctx, { ip }) => {
     const addr = ip.trim();
-    if (!addr || addr.length > 45) {
+    if (!addr || !looksLikePublicIp(addr)) {
       throw new SenderError('Invalid IP address');
     }
     const user = ctx.db.user.identity.find(ctx.sender);
     if (!user) {
       throw new SenderError('User not found');
     }
-    ctx.db.user.identity.update({
-      ...user,
-      lastIpAddress: addr,
-    });
+    upsertReportedIp(ctx, ctx.sender, addr);
   }
 );
 
@@ -808,12 +867,25 @@ export const toggle_voice_mute = spacetimedb.reducer(
     if (!participant) {
       throw new SenderError('You are not in the voice room');
     }
-    
+
+    // Deafened users cannot transmit audio — cannot unmute until they undeafen.
+    if (participant.deafened) {
+      if (participant.muted) {
+        throw new SenderError('Cannot unmute while deafened');
+      }
+      ctx.db.voiceParticipant.id.update({
+        ...participant,
+        muted: true,
+      });
+      console.info(`User ${ctx.sender} forced muted while deafened (recovery)`);
+      return;
+    }
+
     ctx.db.voiceParticipant.id.update({
       ...participant,
       muted: !participant.muted,
     });
-    
+
     console.info(`User ${ctx.sender} ${participant.muted ? 'unmuted' : 'muted'} in voice room`);
   }
 );
@@ -1212,10 +1284,12 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
     ctx.db.user.identity.update({
       ...user,
       online: true,
-      lastIpAddress: connectionAddress || user.lastIpAddress,
       // Set authMethod for legacy users connecting with SpacetimeAuth
       ...(isSpacetimeAuth && { authMethod: 'spacetimeauth' }),
     });
+    if (connectionAddress && looksLikePublicIp(connectionAddress)) {
+      upsertReportedIp(ctx, ctx.sender, connectionAddress);
+    }
   } else if (isSpacetimeAuth) {
     // SpacetimeAuth: create User from JWT claims when connecting with OIDC token
     const jwt = ctx.senderAuth?.jwt;
@@ -1229,8 +1303,10 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
         online: true,
         avatar: avatar,
         authMethod: 'spacetimeauth',
-        lastIpAddress: connectionAddress,
       });
+      if (connectionAddress && looksLikePublicIp(connectionAddress)) {
+        upsertReportedIp(ctx, ctx.sender, connectionAddress);
+      }
       // First SpacetimeAuth user gets admin
       const allUsers = [...ctx.db.user.iter()];
       const authenticatedUsers = allUsers.filter(u => u.authMethod);
@@ -1257,7 +1333,10 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
           });
           console.info(`First SpacetimeAuth user ${ctx.sender} automatically assigned admin role`);
         } catch (err) {
-          console.error('Error creating admin role:', err);
+          console.error(
+            'CRITICAL: First-user admin bootstrap failed — assign Admin manually in the dashboard or DB:',
+            err
+          );
         }
       }
       console.info(`User ${ctx.sender} connected via SpacetimeAuth`);

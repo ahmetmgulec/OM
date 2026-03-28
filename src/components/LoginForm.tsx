@@ -1,3 +1,7 @@
+/**
+ * Not used by the current app (main.tsx uses SpacetimeAuth OIDC only).
+ * `loginEmail` / `loginGoogle` reducers are not in the published module—do not wire this in without backend support.
+ */
 import React, { useState, useRef, useEffect } from 'react';
 import { useReducer } from 'spacetimedb/react';
 import { typedReducers } from '../reducers';

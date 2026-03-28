@@ -86,7 +86,10 @@
     "title": "Ayarlar",
     "displayName": "Görünen İsim",
     "save": "Kaydet",
-    "logout": "Çıkış Yap"
+    "logout": "Çıkış Yap",
+    "accessTokenExpires": "Erişim jetonunun bitmesine kalan süre",
+    "accessTokenExpiresHint": "Uygulama, süre dolmadan oturumunuzu arka planda yeniler.",
+    "accessTokenUnknown": "Süre bilgisi yok"
   },
   "channels": {
     "createChannel": "Kanal Oluştur",
@@ -184,7 +187,19 @@
     },
     "micPermissionDenied": "Mikrofon erişimi reddedildi. Sesli sohbet için mikrofon izni verin.",
     "mustBeMember": "Sesli sohbete katılmak için kanal üyesi olmalısınız.",
-    "joinFailed": "Sesli sohbete katılınamadı. Lütfen tekrar deneyin."
+    "joinFailed": "Sesli sohbete katılınamadı. Lütfen tekrar deneyin.",
+    "micSendVolume": "Giden mikrofon seviyesi",
+    "micSendVolumeHint": "Diğerlerinin sizi ne kadar yüksek duyduğu (gönderilen sesi artırır veya azaltır). %100 normal; mikrofon zaten yüksekse yüksek değerler kırpılabilir.",
+    "micSendQuieter": "Daha sessiz",
+    "micSendLouder": "Daha yüksek",
+    "incomingVolume": "Gelen ses seviyesi",
+    "incomingVolumeHint": "Diğerlerinin size ne kadar yüksek geldiği (onların sizi duymasını değiştirmez).",
+    "voiceSettingsGroup": "Ses ayarları",
+    "voiceSettingsButtonTitle": "Ses ayarları (giden mik ve gelen ses)",
+    "closeVoiceSettings": "Ses ayarlarını kapat",
+    "mutedInVoice": "Mikrofon kapalı",
+    "deafenedInVoice": "Sağırlaştırıldı (gelen ses kapalı)",
+    "muteDisabledWhileDeafenedTitle": "Sağırlaştırılmışken mikrofon açılamaz — önce sağırlaştırmayı kapatın"
   },
   "errors": {
     "sendMessageFailed": "Mesaj gönderilemedi.",
